@@ -30,6 +30,6 @@ classifications = JSONModel::HTTP.get_json("/classifications/classification_name
 
 <div class="form-group">
 	<% form.push("donor") do |form| %>
-		<%= render_aspace_partial :partial => "agents/linker", :locals => { :form => form, :hide_create => true } %>
+		<%= render_aspace_partial :partial => "agents/linker", :locals => { :form => form, :hide_create => true, :multiplicity => "one" } %>
 	<% end %>
 </div>

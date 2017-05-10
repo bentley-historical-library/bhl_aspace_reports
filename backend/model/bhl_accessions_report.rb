@@ -21,7 +21,9 @@ class BhlAccessionsReport < AbstractReport
                   })
 
   
-  attr_reader :processing_status, :processing_priority, :classification, :donor
+  include JSONModel
+
+  attr_reader :processing_status, :processing_priority, :classification, :donor_uri, :donor_type, :donor_id
 
   def initialize(params, job)
     super
@@ -36,6 +38,39 @@ class BhlAccessionsReport < AbstractReport
     if ASUtils.present?(params['classification'])
       @classification = params["classification"]
     end
+
+    if ASUtils.present?(params["from"])
+      from = params["from"]
+    else
+      from = Time.new(1800, 01, 01).to_s
+    end
+
+    if ASUtils.present?(params["to"])
+      to = params["to"]
+    else
+      to = Time.now.to_s
+    end
+
+    Log.info("FROM PARAM: #{from}")
+
+    @from = DateTime.parse(from).to_time.strftime("%Y-%m-%d %H:%M:%S")
+    @to = DateTime.parse(to).to_time.strftime("%Y-%m-%d %H:%M:%S")
+
+    if ASUtils.present?(params["donor"])
+      @donor_uri = params["donor"]["ref"]
+      if donor_uri.include?("people")
+        @donor_type = "agent_person"
+      elsif donor_uri.include?("families")
+        @donor_type = "agent_family"
+      elsif donor_uri.include?("corporate_entities")
+        @donor_type = "agent_corporate_entity"
+      end
+      @donor_id = JSONModel(donor_type).id_for(donor_uri)
+    end
+
+    # TO DO
+    # extent: calculate a total
+
     
   end
 
@@ -44,7 +79,7 @@ class BhlAccessionsReport < AbstractReport
   end
 
   def headers
-    ['accession_id', 'identifier', 'content_description', 'processing_status', 'processing_priority', 'classification_name', 'extent_number']
+    ['accession_id', 'identifier', 'accession_date', 'content_description', 'processing_status', 'processing_priority', 'classifications', 'extent_number_type', 'donor_name', 'donor_number', 'dart_lid']
   end
 
   def processor
@@ -59,9 +94,13 @@ class BhlAccessionsReport < AbstractReport
   end
 
   def query(db)
-    dataset = db[:accession].
-    left_outer_join(:extent, :accession_id => Sequel.qualify(:accession, :id)).
+    # FIX THE ISSUE WITH MULTIPLE VALUES MATCHING AN ACCESSION ID FROM SOME TABLES
+    # dataset.select_group(Sequel.qualify(:accession, :id)).select_more{group_concat(Sequel.qualify(:extent, :number)).as(:extents)}.to_hash(:id)
+    source_enum_id = db[:enumeration].filter(:name=>'linked_agent_role').join(:enumeration_value, :enumeration_id => :id).where(:value => 'source').all[0][:id]
+
+    dataset = db[:accession].where(:accession_date => (@from..@to)).
     left_outer_join(:collection_management, :accession_id => Sequel.qualify(:accession, :id)).
+    left_outer_join(:linked_agents_rlshp, [[:accession_id, Sequel.qualify(:accession, :id)], [:role_id, source_enum_id]]).
     join(:enumeration,
         {
           :name => "collection_management_processing_status"
@@ -96,13 +135,17 @@ class BhlAccessionsReport < AbstractReport
     left_outer_join(:classification, :id => Sequel.qualify(:classification_rlshp, :classification_id)).
     select(
       Sequel.qualify(:accession, :id).as(:accession_id),
+      Sequel.qualify(:accession, :accession_date).as(:accession_date),
       Sequel.qualify(:accession, :identifier),
       Sequel.qualify(:accession, :content_description),
       Sequel.qualify(:enumvals_processing_status, :value).as(:processing_status),
       Sequel.qualify(:enumvals_processing_priority, :value).as(:processing_priority),
-      Sequel.qualify(:classification, :identifier).as(:classification_name),
-      Sequel.qualify(:extent, :number).as(:extent_number)
-      )
+      Sequel.as(Sequel.lit('GetAccessionClassifications(accession.id)'), :classifications),
+      Sequel.as(Sequel.lit('GetAccessionExtentNumberType(accession.id)'), :extent_number_type),
+      Sequel.as(Sequel.lit('GetAccessionSourceName(accession.id)'), :donor_name),
+      Sequel.as(Sequel.lit('GetAccessionDonorNumbers(accession.id)'), :donor_number),
+      Sequel.as(Sequel.lit('GetAccessionDARTLIDs(accession.id)'), :dart_lid)
+      ).group(Sequel.qualify(:accession, :id))
 
     dataset = dataset.where(Sequel.qualify(:accession, :repo_id) => @repo_id)
 
@@ -116,6 +159,10 @@ class BhlAccessionsReport < AbstractReport
 
     if classification
       dataset = dataset.where(Sequel.qualify(:classification, :identifier) => @classification)
+    end
+
+    if donor_uri
+      dataset = dataset.where(Sequel.qualify(:linked_agents_rlshp, :"#{@donor_type}_id") => @donor_id)
     end
 
     dataset
