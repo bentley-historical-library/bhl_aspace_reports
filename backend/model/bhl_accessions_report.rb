@@ -99,8 +99,8 @@ class BhlAccessionsReport < AbstractReport
     source_enum_id = db[:enumeration].filter(:name=>'linked_agent_role').join(:enumeration_value, :enumeration_id => :id).where(:value => 'source').all[0][:id]
 
     dataset = db[:accession].where(:accession_date => (@from..@to)).
-    left_outer_join(:collection_management, :accession_id => Sequel.qualify(:accession, :id)).
     left_outer_join(:linked_agents_rlshp, [[:accession_id, Sequel.qualify(:accession, :id)], [:role_id, source_enum_id]]).
+    left_outer_join(:collection_management, :accession_id => Sequel.qualify(:accession, :id)).
     join(:enumeration,
         {
           :name => "collection_management_processing_status"
@@ -138,8 +138,8 @@ class BhlAccessionsReport < AbstractReport
       Sequel.qualify(:accession, :accession_date).as(:accession_date),
       Sequel.qualify(:accession, :identifier),
       Sequel.qualify(:accession, :content_description),
-      Sequel.qualify(:enumvals_processing_status, :value).as(:processing_status),
-      Sequel.qualify(:enumvals_processing_priority, :value).as(:processing_priority),
+      Sequel.as(Sequel.lit('GetAccessionProcessingStatus(accession.id)'), :processing_status),
+      Sequel.as(Sequel.lit('GetAccessionProcessingPriority(accession.id)'), :processing_priority),
       Sequel.as(Sequel.lit('GetAccessionClassifications(accession.id)'), :classifications),
       Sequel.as(Sequel.lit('GetAccessionExtentNumberType(accession.id)'), :extent_number_type),
       Sequel.as(Sequel.lit('GetAccessionSourceName(accession.id)'), :donor_name),
