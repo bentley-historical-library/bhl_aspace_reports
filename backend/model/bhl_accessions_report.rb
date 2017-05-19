@@ -127,13 +127,12 @@ class BhlAccessionsReport < AbstractReport
         }).
     left_outer_join(:classification_rlshp, :accession_id => Sequel.qualify(:accession, :id)).
     left_outer_join(:classification, :id => Sequel.qualify(:classification_rlshp, :classification_id)).
-    left_outer_join(:user_defined, :accession_id => Sequel.qualify(:accession, :id)).
     select(
       Sequel.qualify(:accession, :id).as(:accession_id),
       Sequel.qualify(:accession, :accession_date).as(:accession_date),
       Sequel.qualify(:accession, :identifier),
       Sequel.qualify(:accession, :content_description),
-      Sequel.qualify(:user_defined, :text_2).as(:location),
+      Sequel.as(Sequel.lit('GetAccessionLocationUserDefined(accession.id)'), :location),
       Sequel.as(Sequel.lit('GetAccessionProcessingStatus(accession.id)'), :processing_status),
       Sequel.as(Sequel.lit('GetAccessionProcessingPriority(accession.id)'), :processing_priority),
       Sequel.as(Sequel.lit('GetAccessionClassifications(accession.id)'), :classifications),
