@@ -51,8 +51,6 @@ class BhlAccessionsReport < AbstractReport
       to = Time.now.to_s
     end
 
-    Log.info("FROM PARAM: #{from}")
-
     @from = DateTime.parse(from).to_time.strftime("%Y-%m-%d %H:%M:%S")
     @to = DateTime.parse(to).to_time.strftime("%Y-%m-%d %H:%M:%S")
 
@@ -70,8 +68,6 @@ class BhlAccessionsReport < AbstractReport
 
     # TO DO
     # extent: calculate a total
-
-    
   end
 
   def title
@@ -79,7 +75,7 @@ class BhlAccessionsReport < AbstractReport
   end
 
   def headers
-    ['accession_id', 'identifier', 'accession_date', 'content_description', 'processing_status', 'processing_priority', 'classifications', 'extent_number_type', 'donor_name', 'donor_number', 'dart_lid']
+    ['accession_id', 'identifier', 'accession_date', 'content_description', 'processing_status', 'processing_priority', 'classifications', 'extent_number_type', 'location', 'donor_name', 'donor_number', 'dart_lid']
   end
 
   def processor
@@ -94,8 +90,6 @@ class BhlAccessionsReport < AbstractReport
   end
 
   def query(db)
-    # FIX THE ISSUE WITH MULTIPLE VALUES MATCHING AN ACCESSION ID FROM SOME TABLES
-    # dataset.select_group(Sequel.qualify(:accession, :id)).select_more{group_concat(Sequel.qualify(:extent, :number)).as(:extents)}.to_hash(:id)
     source_enum_id = db[:enumeration].filter(:name=>'linked_agent_role').join(:enumeration_value, :enumeration_id => :id).where(:value => 'source').all[0][:id]
 
     dataset = db[:accession].where(:accession_date => (@from..@to)).
@@ -133,11 +127,13 @@ class BhlAccessionsReport < AbstractReport
         }).
     left_outer_join(:classification_rlshp, :accession_id => Sequel.qualify(:accession, :id)).
     left_outer_join(:classification, :id => Sequel.qualify(:classification_rlshp, :classification_id)).
+    left_outer_join(:user_defined, :accession_id => Sequel.qualify(:accession, :id)).
     select(
       Sequel.qualify(:accession, :id).as(:accession_id),
       Sequel.qualify(:accession, :accession_date).as(:accession_date),
       Sequel.qualify(:accession, :identifier),
       Sequel.qualify(:accession, :content_description),
+      Sequel.qualify(:user_defined, :text_2).as(:location),
       Sequel.as(Sequel.lit('GetAccessionProcessingStatus(accession.id)'), :processing_status),
       Sequel.as(Sequel.lit('GetAccessionProcessingPriority(accession.id)'), :processing_priority),
       Sequel.as(Sequel.lit('GetAccessionClassifications(accession.id)'), :classifications),
