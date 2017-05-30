@@ -32,7 +32,7 @@ class BhlDARTReport < AbstractReport
   end
 
   def headers
-    ['accession_id', 'identifier', 'accession_date', 'thank_you_text', 'content_description', 'donor_name', 'donor_number', 'dart_lid']
+    ['accession_id', 'identifier', 'accession_date', 'thank_you_text', 'donor_name', 'address', 'city', 'state', 'country', 'zip_code', 'donor_number', 'dart_lid']
   end
 
   def processor
@@ -47,30 +47,57 @@ class BhlDARTReport < AbstractReport
   end
 
   def query(db)
-  	source_enum_id = db[:enumeration].filter(:name=>'linked_agent_role').join(:enumeration_value, :enumeration_id => :id).where(:value => 'source').all[0][:id]
-    agreement_signed_id = db[:enumeration].filter(:name => 'event_event_type').join(:enumeration_value, :enumeration_id => :id).where(:value=>'agreement_signed').all[0][:id]
-    pass_id = db[:enumeration].filter(:name => 'event_outcome').join(:enumeration_value, :enumeration_id => :id).where(:value => 'pass').all[0][:id]
+    source_enum_id = db[:enumeration].filter(:name=>'linked_agent_role').join(:enumeration_value, :enumeration_id => :id).where(:value => 'source').all[0][:id]
     
-    dataset = db[:accession].
+    dataset = db[:accession].where(:accession_date => (@from..@to)).
     left_outer_join(:user_defined, :accession_id => Sequel.qualify(:accession, :id)).
-    left_outer_join(:linked_agents_rlshp, :accession_id => Sequel.qualify(:accession, :id)).
-    left_outer_join(:event_link_rlshp, :accession_id => Sequel.qualify(:accession, :id)).
-    left_outer_join(:event,:id => Sequel.qualify(:event_link_rlshp, :event_id)).
+    left_outer_join(:linked_agents_rlshp, [[:accession_id, Sequel.qualify(:accession, :id)], [:role_id, source_enum_id]]).
+    left_outer_join(:classification_rlshp, :accession_id => Sequel.qualify(:accession, :id)).
+    left_outer_join(:classification, :id => Sequel.qualify(:classification_rlshp, :classification_id)).
     select(
-    	Sequel.qualify(:accession, :id).as(:accession_id),
-    	Sequel.qualify(:accession, :accession_date).as(:accession_date),
-    	Sequel.qualify(:accession, :identifier),
-    	Sequel.qualify(:accession, :content_description),
-    	Sequel.qualify(:user_defined, :text_1).as(:thank_you_text),
-    	Sequel.as(Sequel.lit('GetAccessionSourceName(accession.id)'), :donor_name),
-    	Sequel.as(Sequel.lit('GetAccessionDonorNumber(linked_agents_rlshp.agent_person_id, linked_agents_rlshp.agent_family_id, linked_agents_rlshp.agent_corporate_entity_id)'), :donor_number),
-    	Sequel.as(Sequel.lit('GetAccessionDonorDARTLID(linked_agents_rlshp.agent_person_id, linked_agents_rlshp.agent_family_id, linked_agents_rlshp.agent_corporate_entity_id)'), :dart_lid)
-    	).
-    where(Sequel.qualify(:event, :timestamp) => (@from..@to)).
-    where(Sequel.qualify(:linked_agents_rlshp, :role_id) => source_enum_id).
-    where(Sequel.qualify(:event, :event_type_id) => agreement_signed_id).
-    where(Sequel.qualify(:event, :outcome_id) => pass_id).
-    where(Sequel.qualify(:accession, :repo_id) => @repo_id)
+      Sequel.qualify(:accession, :id).as(:accession_id),
+      Sequel.qualify(:accession, :identifier),
+      Sequel.qualify(:accession, :accession_date).as(:accession_date),
+      Sequel.qualify(:user_defined, :text_1).as(:thank_you_text),
+      Sequel.as(Sequel.lit('GetAgentContactName(linked_agents_rlshp.agent_person_id, linked_agents_rlshp.agent_family_id, linked_agents_rlshp.agent_corporate_entity_id)'), :donor_name),
+      Sequel.as(Sequel.lit('GetAgentAddress(linked_agents_rlshp.agent_person_id, linked_agents_rlshp.agent_family_id, linked_agents_rlshp.agent_corporate_entity_id)'), :address),
+      Sequel.as(Sequel.lit('GetAgentCity(linked_agents_rlshp.agent_person_id, linked_agents_rlshp.agent_family_id, linked_agents_rlshp.agent_corporate_entity_id)'), :city),
+      Sequel.as(Sequel.lit('GetAgentState(linked_agents_rlshp.agent_person_id, linked_agents_rlshp.agent_family_id, linked_agents_rlshp.agent_corporate_entity_id)'), :state),
+      Sequel.as(Sequel.lit('GetAgentCountry(linked_agents_rlshp.agent_person_id, linked_agents_rlshp.agent_family_id, linked_agents_rlshp.agent_corporate_entity_id)'), :country),
+      Sequel.as(Sequel.lit('GetAgentZipCode(linked_agents_rlshp.agent_person_id, linked_agents_rlshp.agent_family_id, linked_agents_rlshp.agent_corporate_entity_id)'), :zip_code),
+      Sequel.as(Sequel.lit('GetAccessionDonorNumber(linked_agents_rlshp.agent_person_id, linked_agents_rlshp.agent_family_id, linked_agents_rlshp.agent_corporate_entity_id)'), :donor_number),
+      Sequel.as(Sequel.lit('GetAccessionDonorDARTLID(linked_agents_rlshp.agent_person_id, linked_agents_rlshp.agent_family_id, linked_agents_rlshp.agent_corporate_entity_id)'), :dart_lid)
+      ).
+    where(Sequel.qualify(:accession, :repo_id) => @repo_id).
+    exclude(Sequel.qualify(:classification, :identifier) => ["UA", "RCS"])
+
+    #agreement_signed_id = db[:enumeration].filter(:name => 'event_event_type').join(:enumeration_value, :enumeration_id => :id).where(:value=>'agreement_signed').all[0][:id]
+    #pass_id = db[:enumeration].filter(:name => 'event_outcome').join(:enumeration_value, :enumeration_id => :id).where(:value => 'pass').all[0][:id]
+    
+    # dataset = db[:accession].
+    # left_outer_join(:user_defined, :accession_id => Sequel.qualify(:accession, :id)).
+    # left_outer_join(:linked_agents_rlshp, :accession_id => Sequel.qualify(:accession, :id)).
+    # left_outer_join(:event_link_rlshp, :accession_id => Sequel.qualify(:accession, :id)).
+    # left_outer_join(:event,:id => Sequel.qualify(:event_link_rlshp, :event_id)).
+    # select(
+    # 	Sequel.qualify(:accession, :id).as(:accession_id),
+    # 	Sequel.qualify(:accession, :accession_date).as(:accession_date),
+    # 	Sequel.qualify(:accession, :identifier),
+    # 	Sequel.qualify(:user_defined, :text_1).as(:thank_you_text),
+    # 	Sequel.as(Sequel.lit('GetAgentContactName(linked_agents_rlshp.agent_person_id, linked_agents_rlshp.agent_family_id, linked_agents_rlshp.agent_corporate_entity_id)'), :donor_name),
+    #   Sequel.as(Sequel.lit('GetAgentAddress(linked_agents_rlshp.agent_person_id, linked_agents_rlshp.agent_family_id, linked_agents_rlshp.agent_corporate_entity_id)'), :address),
+    #   Sequel.as(Sequel.lit('GetAgentCity(linked_agents_rlshp.agent_person_id, linked_agents_rlshp.agent_family_id, linked_agents_rlshp.agent_corporate_entity_id)'), :city),
+    #   Sequel.as(Sequel.lit('GetAgentState(linked_agents_rlshp.agent_person_id, linked_agents_rlshp.agent_family_id, linked_agents_rlshp.agent_corporate_entity_id)'), :state),
+    #   Sequel.as(Sequel.lit('GetAgentCountry(linked_agents_rlshp.agent_person_id, linked_agents_rlshp.agent_family_id, linked_agents_rlshp.agent_corporate_entity_id)'), :country),
+    #   Sequel.as(Sequel.lit('GetAgentZipCode(linked_agents_rlshp.agent_person_id, linked_agents_rlshp.agent_family_id, linked_agents_rlshp.agent_corporate_entity_id)'), :zip_code),
+    # 	Sequel.as(Sequel.lit('GetAccessionDonorNumber(linked_agents_rlshp.agent_person_id, linked_agents_rlshp.agent_family_id, linked_agents_rlshp.agent_corporate_entity_id)'), :donor_number),
+    # 	Sequel.as(Sequel.lit('GetAccessionDonorDARTLID(linked_agents_rlshp.agent_person_id, linked_agents_rlshp.agent_family_id, linked_agents_rlshp.agent_corporate_entity_id)'), :dart_lid)
+    # 	).
+    # where(Sequel.qualify(:event, :timestamp) => (@from..@to)).
+    # where(Sequel.qualify(:linked_agents_rlshp, :role_id) => source_enum_id).
+    # where(Sequel.qualify(:event, :event_type_id) => agreement_signed_id).
+    # where(Sequel.qualify(:event, :outcome_id) => pass_id).
+    # where(Sequel.qualify(:accession, :repo_id) => @repo_id)
 
     dataset
   end

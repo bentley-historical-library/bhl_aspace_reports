@@ -36,9 +36,7 @@ class BhlAccessionsExtentReport < AbstractReport
   end
 
   def processor
-    {
-      'identifier' => proc {|record| ASUtils.json_parse(record[:identifier] || "[]").compact.join("-")}
-    }
+    {}
   end
 
   def scope_by_repo_id(dataset)
