@@ -59,8 +59,6 @@ class BhlDARTReport < AbstractReport
     dataset = db[:accession].where(:accession_date => (@from..@to)).
     left_outer_join(:user_defined, :accession_id => Sequel.qualify(:accession, :id)).
     left_outer_join(:linked_agents_rlshp, [[:accession_id, Sequel.qualify(:accession, :id)], [:role_id, source_enum_id]]).
-    left_outer_join(:classification_rlshp, :accession_id => Sequel.qualify(:accession, :id)).
-    left_outer_join(:classification, :id => Sequel.qualify(:classification_rlshp, :classification_id)).
     select(
       Sequel.qualify(:accession, :id).as(:accession_id),
       Sequel.qualify(:accession, :identifier),
@@ -80,8 +78,9 @@ class BhlDARTReport < AbstractReport
       Sequel.as(Sequel.lit('GetAccessionDonorNumber(linked_agents_rlshp.agent_person_id, linked_agents_rlshp.agent_family_id, linked_agents_rlshp.agent_corporate_entity_id)'), :donor_number),
       Sequel.as(Sequel.lit('GetAccessionDonorDARTLID(linked_agents_rlshp.agent_person_id, linked_agents_rlshp.agent_family_id, linked_agents_rlshp.agent_corporate_entity_id)'), :DART_LID)
       ).
-    where(Sequel.qualify(:accession, :repo_id) => @repo_id).
-    exclude(Sequel.qualify(:classification, :identifier) => ["UA", "RCS"])
+    where(Sequel.qualify(:accession, :repo_id) => @repo_id)
+
+    dataset = dataset.where(Sequel.lit('GetEnumValue(user_defined.enum_1_id)') => ["MHC", "FAC"]).or(Sequel.lit('GetEnumValue(user_defined.enum_2_id)') => ["MHC", "FAC"]).or(Sequel.lit('GetEnumValue(user_defined.enum_3_id)') => ["MHC", "FAC"])
 
     #agreement_signed_id = db[:enumeration].filter(:name => 'event_event_type').join(:enumeration_value, :enumeration_id => :id).where(:value=>'agreement_signed').all[0][:id]
     #pass_id = db[:enumeration].filter(:name => 'event_outcome').join(:enumeration_value, :enumeration_id => :id).where(:value => 'pass').all[0][:id]

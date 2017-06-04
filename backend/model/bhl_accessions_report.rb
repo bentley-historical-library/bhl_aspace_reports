@@ -125,8 +125,7 @@ class BhlAccessionsReport < AbstractReport
         {
          :table_alias => :enumvals_processing_priority
         }).
-    left_outer_join(:classification_rlshp, :accession_id => Sequel.qualify(:accession, :id)).
-    left_outer_join(:classification, :id => Sequel.qualify(:classification_rlshp, :classification_id)).
+    left_outer_join(:user_defined, :accession_id => Sequel.qualify(:accession, :id)).
     select(
       Sequel.qualify(:accession, :id).as(:accession_id),
       Sequel.qualify(:accession, :accession_date).as(:accession_date),
@@ -135,7 +134,7 @@ class BhlAccessionsReport < AbstractReport
       Sequel.as(Sequel.lit('GetAccessionLocationUserDefined(accession.id)'), :location),
       Sequel.as(Sequel.lit('GetAccessionProcessingStatus(accession.id)'), :processing_status),
       Sequel.as(Sequel.lit('GetAccessionProcessingPriority(accession.id)'), :processing_priority),
-      Sequel.as(Sequel.lit('GetAccessionClassifications(accession.id)'), :classifications),
+      Sequel.as(Sequel.lit('GetAccessionClassificationUserDefined(user_defined.enum_1_id, user_defined.enum_2_id, user_defined.enum_3_id)'), :classifications),
       Sequel.as(Sequel.lit('GetAccessionExtentNumberType(accession.id)'), :extent_number_type),
       Sequel.as(Sequel.lit('GetAccessionSourceName(accession.id)'), :donor_name),
       Sequel.as(Sequel.lit('GetAccessionDonorNumbers(accession.id)'), :donor_number),
@@ -153,7 +152,8 @@ class BhlAccessionsReport < AbstractReport
     end
 
     if classification
-      dataset = dataset.where(Sequel.qualify(:classification, :identifier) => @classification)
+      #where{(price - 100 > 200) | (price / 100 >= 200)}
+      dataset = dataset.where(Sequel.lit('GetEnumValue(user_defined.enum_1_id)') => @classification).or(Sequel.lit('GetEnumValue(user_defined.enum_2_id)') => @classification).or(Sequel.lit('GetEnumValue(user_defined.enum_3_id)') => @classification)
     end
 
     if donor_uri
