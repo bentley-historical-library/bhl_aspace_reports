@@ -2,7 +2,8 @@
 # We get this list from the ApplicationController and it's filtered to the repositories the current user can access.
 processing_statuses = JSONModel.enum_values("collection_management_processing_status").map{|v| [I18n.t("enumerations.collection_management_processing_status.#{v}", :default => v), v]}
 processing_priorities = JSONModel.enum_values("collection_management_processing_priority").map{|v| [I18n.t("enumerations.collection_management_processing_priority.#{v}", :default => v), v]}
-classifications = JSONModel::HTTP.get_json("/classifications/classification_names")
+classifications = JSONModel.enum_values("user_defined_enum_1").map{|v| [I18n.t("enumerations.user_defined_enum_1.#{v}", :default => v), v]}
+#classifications = JSONModel::HTTP.get_json("/classifications/classification_names")
 %>
 
 <hr>
