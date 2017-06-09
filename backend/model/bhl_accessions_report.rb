@@ -134,7 +134,7 @@ class BhlAccessionsReport < AbstractReport
       Sequel.as(Sequel.lit('GetAccessionLocationUserDefined(accession.id)'), :location),
       Sequel.as(Sequel.lit('GetAccessionProcessingStatus(accession.id)'), :processing_status),
       Sequel.as(Sequel.lit('GetAccessionProcessingPriority(accession.id)'), :processing_priority),
-      Sequel.as(Sequel.lit('GetAccessionClassificationUserDefined(user_defined.enum_1_id, user_defined.enum_2_id, user_defined.enum_3_id)'), :classifications),
+      Sequel.as(Sequel.lit('GetAccessionClassificationsByID(accession.id)'), :classifications),
       Sequel.as(Sequel.lit('GetAccessionExtentNumberType(accession.id)'), :extent_number_type),
       Sequel.as(Sequel.lit('GetAccessionSourceName(accession.id)'), :donor_name),
       Sequel.as(Sequel.lit('GetAccessionDonorNumbers(accession.id)'), :donor_number),
