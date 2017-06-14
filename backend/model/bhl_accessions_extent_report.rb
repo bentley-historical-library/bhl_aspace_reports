@@ -4,12 +4,19 @@ class BhlAccessionsExtentReport < AbstractReport
                     :uri_suffix => "bhl_accessions_extent_report",
                     :description => "Bentley Historical Library Accessions Extent Report",
                     :params => [["from", Date, "The start of report range"],
-                                ["to", Date, "The start of report range"]]
+                                ["to", Date, "The start of report range"],
+                                ["Additional Parameters", "accessionsextentparams", "Additional Accessions Extent parameters"]]
                   })
 
+  attr_reader :classification
 
   def initialize(params, job)
     super
+
+    if ASUtils.present?(params['classification'])
+      @classification = params["classification"]
+    end
+
     if ASUtils.present?(params["from"])
       from = params["from"]
     else
@@ -46,6 +53,7 @@ class BhlAccessionsExtentReport < AbstractReport
 
   def query(db)    
     dataset = db[:accession].where(:accession_date => (@from..@to)).
+    left_outer_join(:user_defined, :accession_id => Sequel.qualify(:accession, :id)).
     left_outer_join(:extent, :accession_id => Sequel.qualify(:accession, :id)).
     select(
       Sequel.as(Sequel.lit('SUM(extent.number)'), :totalNumber),
@@ -53,6 +61,10 @@ class BhlAccessionsExtentReport < AbstractReport
         ).
     group(:extent_type_id).
     where(Sequel.qualify(:accession, :repo_id) => @repo_id)
+
+    if classification
+      dataset = dataset.where(Sequel.lit('GetEnumValue(user_defined.enum_1_id)') => @classification).or(Sequel.lit('GetEnumValue(user_defined.enum_2_id)') => @classification).or(Sequel.lit('GetEnumValue(user_defined.enum_3_id)') => @classification)
+    end
 
     dataset
   end

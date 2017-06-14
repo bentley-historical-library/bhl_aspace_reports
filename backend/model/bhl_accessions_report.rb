@@ -1,15 +1,3 @@
-=begin
-
-Using these as a guide: 
-https://github.com/archivesspace/archivesspace/blob/master/backend/app/model/reports/unprocessed_accessions_report.rb
-This one has params: https://github.com/archivesspace/archivesspace/blob/master/backend/app/model/reports/created_accessions_report.rb
-This one has params that are defined in some other, non-intuitive places: https://github.com/archivesspace/archivesspace/blob/master/backend/app/model/reports/location_holdings_report.rb
-LocationList: https://github.com/archivesspace/archivesspace/blob/master/frontend/app/views/jobs/report_partials/_locationlist.html.erb
-Relies on this JS: https://github.com/archivesspace/archivesspace/blob/f286c031af272722c3209008dd1fe818dd67f997/frontend/app/assets/javascripts/jobs.crud.js#L342
-
-This is where some other param info is: https://github.com/archivesspace/archivesspace/blob/master/frontend/app/views/jobs/_form.html.erb#L93-L115
-=end
-
 class BhlAccessionsReport < AbstractReport
   
   register_report({
@@ -134,21 +122,32 @@ class BhlAccessionsReport < AbstractReport
       Sequel.as(Sequel.lit('GetAccessionLocationUserDefined(accession.id)'), :location),
       Sequel.as(Sequel.lit('GetAccessionProcessingStatus(accession.id)'), :processing_status),
       Sequel.as(Sequel.lit('GetAccessionProcessingPriority(accession.id)'), :processing_priority),
-      Sequel.as(Sequel.lit('GetAccessionClassificationsByID(accession.id)'), :classifications),
+      Sequel.as(Sequel.lit('GetAccessionClassificationsUserDefined(accession.id)'), :classifications),
       Sequel.as(Sequel.lit('GetAccessionExtentNumberType(accession.id)'), :extent_number_type),
       Sequel.as(Sequel.lit('GetAccessionSourceName(accession.id)'), :donor_name),
       Sequel.as(Sequel.lit('GetAccessionDonorNumbers(accession.id)'), :donor_number),
-      Sequel.as(Sequel.lit('GetAccessionDARTLIDs(accession.id)'), :dart_lid)
       ).group(Sequel.qualify(:accession, :id))
 
     dataset = dataset.where(Sequel.qualify(:accession, :repo_id) => @repo_id)
 
     if processing_status
-      dataset = dataset.where(Sequel.qualify(:enumvals_processing_status, :value) => @processing_status)
+      if processing_status == "No Defined Value"
+        dataset = dataset.where(Sequel.qualify(:enumvals_processing_status, :value) => nil)
+      elsif processing_status == "Any Defined Value"
+        dataset = dataset.exclude(Sequel.qualify(:enumvals_processing_status, :value) => nil)
+      else
+        dataset = dataset.where(Sequel.qualify(:enumvals_processing_status, :value) => @processing_status)
+      end
     end
 
     if processing_priority
-      dataset = dataset.where(Sequel.qualify(:enumvals_processing_priority, :value) => @processing_priority)
+      if processing_priority == "No Defined Value"
+        dataset = dataset.where(Sequel.qualify(:enumvals_processing_priority, :value) => nil)
+      elsif processing_priority == "Any Defined Value"
+        dataset = dataset.exclude(Sequel.qualify(:enumvals_processing_priority, :value) => nil)
+      else
+        dataset = dataset.where(Sequel.qualify(:enumvals_processing_priority, :value) => @processing_priority)
+      end
     end
 
     if classification
