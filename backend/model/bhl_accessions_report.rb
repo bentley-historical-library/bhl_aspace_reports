@@ -63,7 +63,7 @@ class BhlAccessionsReport < AbstractReport
   end
 
   def headers
-    ['identifier', 'accession_date', 'content_description', 'processing_status', 'processing_priority', 'classifications', 'extent_number_type', 'location', 'donor_name', 'donor_number']
+    ['identifier', 'donor_name', 'donor_number', 'accession_date', 'content_description', 'processing_status', 'processing_priority', 'classifications', 'extent_number_type', 'location']
   end
 
   def processor

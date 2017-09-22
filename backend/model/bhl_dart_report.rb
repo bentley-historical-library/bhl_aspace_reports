@@ -46,7 +46,7 @@ class BhlDARTReport < AbstractReport
       'GIK subtype' => proc {|record| 'art & books'},
       '# of units' => proc {|record| '1'},
       'Bentley Accession ID' => proc {|record| ASUtils.json_parse(record[:identifier] || "[]").compact.join("-")},
-      'Constituent alt lookup ID' => proc {|record| record[:donor_number]}
+      'Constituent alt lookup ID' => proc {|record| record[:beal_contact_id]}
     }
   end
 
@@ -75,7 +75,7 @@ class BhlDARTReport < AbstractReport
       Sequel.as(Sequel.lit('GetAgentCity(linked_agents_rlshp.agent_person_id, linked_agents_rlshp.agent_family_id, linked_agents_rlshp.agent_corporate_entity_id)'), :City),
       Sequel.as(Sequel.lit('GetAgentState(linked_agents_rlshp.agent_person_id, linked_agents_rlshp.agent_family_id, linked_agents_rlshp.agent_corporate_entity_id)'), :St),
       Sequel.as(Sequel.lit('GetAgentZipCode(linked_agents_rlshp.agent_person_id, linked_agents_rlshp.agent_family_id, linked_agents_rlshp.agent_corporate_entity_id)'), :Zip),
-      Sequel.as(Sequel.lit('GetAgentDonorNumber(linked_agents_rlshp.agent_person_id, linked_agents_rlshp.agent_family_id, linked_agents_rlshp.agent_corporate_entity_id)'), :donor_number),
+      Sequel.as(Sequel.lit('GetAgentBEALContactID(linked_agents_rlshp.agent_person_id, linked_agents_rlshp.agent_family_id, linked_agents_rlshp.agent_corporate_entity_id)'), :beal_contact_id),
       Sequel.as(Sequel.lit('GetAgentDARTLID(linked_agents_rlshp.agent_person_id, linked_agents_rlshp.agent_family_id, linked_agents_rlshp.agent_corporate_entity_id)'), :DART_LID)
       ).
     where(Sequel.qualify(:accession, :repo_id) => @repo_id).
