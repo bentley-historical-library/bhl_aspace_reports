@@ -68,6 +68,4 @@ class BhlAccessionsExtentReport < AbstractReport
 
     dataset
   end
-
-
 end
