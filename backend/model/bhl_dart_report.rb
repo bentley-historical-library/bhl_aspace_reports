@@ -79,7 +79,8 @@ class BhlDARTReport < AbstractReport
       Sequel.as(Sequel.lit('GetAgentBEALContactID(linked_agents_rlshp.agent_person_id, linked_agents_rlshp.agent_family_id, linked_agents_rlshp.agent_corporate_entity_id)'), :beal_contact_id),
       Sequel.as(Sequel.lit('GetAgentDARTLID(linked_agents_rlshp.agent_person_id, linked_agents_rlshp.agent_family_id, linked_agents_rlshp.agent_corporate_entity_id)'), :DART_LID)
       ).
-    where(Sequel.qualify(:accession, :repo_id) => @repo_id)
+    where(Sequel.qualify(:accession, :repo_id) => @repo_id).
+    group(Sequel.qualify(:accession, :id))
 
     dataset = dataset.where(Sequel.lit('GetEnumValue(user_defined.enum_1_id)') => ["MHC", "FAC"]).or(Sequel.lit('GetEnumValue(user_defined.enum_2_id)') => ["MHC", "FAC"]).or(Sequel.lit('GetEnumValue(user_defined.enum_3_id)') => ["MHC", "FAC"])
 
