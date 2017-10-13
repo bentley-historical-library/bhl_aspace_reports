@@ -4,7 +4,7 @@ class BhlAccessionsReport < AbstractReport
                     :uri_suffix => "bhl_accessions_report",
                     :description => "Bentley Historical Library Accessions Report",
                     :params => [["from", Date, "The start of report range"],
-                                ["to", Date, "The start of report range"],
+                                ["to", Date, "The end of report range"],
                                 ["Additional Parameters", "accessionsparams", "Additional Accession parameters"]]
                   })
 

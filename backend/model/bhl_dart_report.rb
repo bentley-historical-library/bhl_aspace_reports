@@ -4,7 +4,7 @@ class BhlDARTReport < AbstractReport
                     :uri_suffix => "bhl_dart_report",
                     :description => "Bentley Historical Library DART Report",
                     :params => [["from", Date, "The start of report range"],
-                                ["to", Date, "The start of report range"]]
+                                ["to", Date, "The end of report range"]]
                   })
 
 
@@ -17,16 +17,14 @@ class BhlDARTReport < AbstractReport
     end
 
     if ASUtils.present?(params["to"])
-      to = params["to"]
+      # add 1 day to the to parameter to make the Sequel query inclusive of the date specified in the to parameter
+      to = DateTime.parse(params["to"]) + 1
     else
-      to = Time.now.to_s
+      to = DateTime.parse(Time.now.to_s)
     end
 
     @from = DateTime.parse(from).to_time.strftime("%Y-%m-%d %H:%M:%S")
-
-    # add 1 day to the to parameter to make the Sequel query inclusive of the date specified in the to parameter
-    to_parsed = DateTime.parse(to) + 1
-    @to = to_parsed.to_time.strftime("%Y-%m-%d %H:%M:%S")
+    @to = to.to_time.strftime("%Y-%m-%d %H:%M:%S")
   end
 
 
@@ -58,7 +56,10 @@ class BhlDARTReport < AbstractReport
   def query(db)
     source_enum_id = db[:enumeration].filter(:name=>'linked_agent_role').join(:enumeration_value, :enumeration_id => :id).where(:value => 'source').all[0][:id]
     
-    dataset = db[:accession].where(:accession_date => (@from..@to)).
+    accession_ids = db[:accession].where(:accession_date => (@from..@to)).map(:id)
+
+    dataset = db[:accession].
+    filter(Sequel.qualify(:accession, :id) => accession_ids).
     left_outer_join(:user_defined, :accession_id => Sequel.qualify(:accession, :id)).
     left_outer_join(:linked_agents_rlshp, [[:accession_id, Sequel.qualify(:accession, :id)], [:role_id, source_enum_id]]).
     select(
@@ -78,9 +79,7 @@ class BhlDARTReport < AbstractReport
       Sequel.as(Sequel.lit('GetAgentBEALContactID(linked_agents_rlshp.agent_person_id, linked_agents_rlshp.agent_family_id, linked_agents_rlshp.agent_corporate_entity_id)'), :beal_contact_id),
       Sequel.as(Sequel.lit('GetAgentDARTLID(linked_agents_rlshp.agent_person_id, linked_agents_rlshp.agent_family_id, linked_agents_rlshp.agent_corporate_entity_id)'), :DART_LID)
       ).
-    where(Sequel.qualify(:accession, :repo_id) => @repo_id).
-    group(Sequel.qualify(:accession, :id))
-
+    where(Sequel.qualify(:accession, :repo_id) => @repo_id)
 
     dataset = dataset.where(Sequel.lit('GetEnumValue(user_defined.enum_1_id)') => ["MHC", "FAC"]).or(Sequel.lit('GetEnumValue(user_defined.enum_2_id)') => ["MHC", "FAC"]).or(Sequel.lit('GetEnumValue(user_defined.enum_3_id)') => ["MHC", "FAC"])
 
