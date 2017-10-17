@@ -1,8 +1,8 @@
-class BhlDARTReport < AbstractReport
+class BhlUnreportedAccessionsReport < AbstractReport
   
   register_report({
-                    :uri_suffix => "bhl_dart_report",
-                    :description => "Bentley Historical Library DART Report",
+                    :uri_suffix => "bhl_unreported_accessions_report",
+                    :description => "Bentley Historical Library non-DART Accessions Report",
                     :params => [["from", Date, "The start of report range"],
                                 ["to", Date, "The end of report range"]]
                   })
@@ -28,22 +28,17 @@ class BhlDARTReport < AbstractReport
 
 
   def title
-    "Bentley Historical Library DART Report"
+    "Bentley Historical Library non-DART Accessions Report"
   end
 
   def headers
-    ['DART_LID', 'Lastname', 'Firstname', 'Middle', 'Suffix', 'Title', 'OrganizationOrUnit', 'Street1', 'Street2', 'City', 'St', 'Zip', 'donation amt', 'credit date', 'item description', 'designation', 'comment', 'concatenated', 'note', 'note type', 'GIK subtype', '# of units', 'item name', 'REV type', 'do not receipt', 'Constituent alt lookup ID', 'Bentley Accession ID']
+    ['Accession ID', 'accession_date', 'classifications', 'created_by', 'donor_name', 'DART_LID', 'Donor Contact ID']
   end
 
   def processor
     {
-      'donation amt' => proc {|record| '1'},
-      'credit date' => proc {|record| record[:accession_date]},
-      'designation' => proc {|record| '897100'},
-      'GIK subtype' => proc {|record| 'art & books'},
-      '# of units' => proc {|record| '1'},
-      'Bentley Accession ID' => proc {|record| ASUtils.json_parse(record[:identifier] || "[]").compact.join("-")},
-      'Constituent alt lookup ID' => proc {|record| record[:beal_contact_id]}
+      'Accession ID' => proc {|record| ASUtils.json_parse(record[:identifier] || "[]").compact.join("-")},
+      'Donor Contact ID' => proc {|record| record[:beal_contact_id]}
     }
   end
 
@@ -65,6 +60,8 @@ class BhlDARTReport < AbstractReport
       Sequel.qualify(:accession, :id).as(:accession_id),
       Sequel.qualify(:accession, :identifier),
       Sequel.qualify(:accession, :accession_date),
+      Sequel.qualify(:accession, :created_by),
+      Sequel.as(Sequel.lit('GetAccessionSourceName(accession.id)'), :donor_name),
       Sequel.as(Sequel.lit('GetAgentLastName(linked_agents_rlshp.agent_person_id, linked_agents_rlshp.agent_family_id, linked_agents_rlshp.agent_corporate_entity_id)'), :Lastname),
       Sequel.as(Sequel.lit('GetAgentRestOfName(linked_agents_rlshp.agent_person_id, linked_agents_rlshp.agent_family_id, linked_agents_rlshp.agent_corporate_entity_id)'), :Firstname),
       Sequel.as(Sequel.lit('GetAgentSuffix(linked_agents_rlshp.agent_person_id, linked_agents_rlshp.agent_family_id, linked_agents_rlshp.agent_corporate_entity_id)'), :Suffix),
@@ -76,14 +73,16 @@ class BhlDARTReport < AbstractReport
       Sequel.as(Sequel.lit('GetAgentState(linked_agents_rlshp.agent_person_id, linked_agents_rlshp.agent_family_id, linked_agents_rlshp.agent_corporate_entity_id)'), :St),
       Sequel.as(Sequel.lit('GetAgentZipCode(linked_agents_rlshp.agent_person_id, linked_agents_rlshp.agent_family_id, linked_agents_rlshp.agent_corporate_entity_id)'), :Zip),
       Sequel.as(Sequel.lit('GetAgentBEALContactID(linked_agents_rlshp.agent_person_id, linked_agents_rlshp.agent_family_id, linked_agents_rlshp.agent_corporate_entity_id)'), :beal_contact_id),
+      Sequel.as(Sequel.lit('GetAccessionClassificationsUserDefined(accession.id)'), :classifications),
       Sequel.as(Sequel.lit('GetAgentDARTLID(linked_agents_rlshp.agent_person_id, linked_agents_rlshp.agent_family_id, linked_agents_rlshp.agent_corporate_entity_id)'), :DART_LID)
       ).
     where(Sequel.qualify(:accession, :repo_id) => @repo_id).
     group(Sequel.qualify(:accession, :id)).
     order(Sequel.asc(:accession_date))
 
-    dataset = dataset.where(Sequel.lit('GetEnumValue(user_defined.enum_1_id) IN ("MHC", "FAC")')).or(Sequel.lit('GetEnumValue(user_defined.enum_2_id) IN ("MHC", "FAC")')).or(Sequel.lit('GetEnumValue(user_defined.enum_3_id) IN ("MHC", "FAC")'))
+    dataset = dataset.where{Sequel.lit('(user_defined.enum_1_id IS NULL OR NOT GetEnumValue(user_defined.enum_1_id) IN ("MHC", "FAC")) AND (user_defined.enum_2_id IS NULL OR NOT GetEnumValue(user_defined.enum_2_id) IN ("MHC", "FAC")) AND (user_defined.enum_3_id IS NULL OR NOT GetEnumValue(user_defined.enum_3_id) IN ("MHC", "FAC"))')}
     dataset = dataset.where(:accession_date => (@from..@to))
+    
     dataset
   end
 
