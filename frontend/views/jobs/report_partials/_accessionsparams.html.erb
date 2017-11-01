@@ -29,6 +29,6 @@ classifications = JSONModel.enum_values("user_defined_enum_1").map{|v| [I18n.t("
 
 <div class="form-group">
 	<% form.push("donor") do |form| %>
-		<%= render_aspace_partial :partial => "agents/linker", :locals => { :form => form, :hide_create => true, :multiplicity => "one" } %>
+		<%= render_aspace_partial :partial => "agents/linker", :locals => { :form => form, :hide_create => true, :optional => true, :multiplicity => "one" } %>
 	<% end %>
 </div>
