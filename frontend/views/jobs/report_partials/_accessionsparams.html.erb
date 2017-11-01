@@ -1,34 +1,45 @@
 <%
 processing_statuses = JSONModel.enum_values("collection_management_processing_status").map{|v| [I18n.t("enumerations.collection_management_processing_status.#{v}", :default => v), v]}
+
 processing_priorities = JSONModel.enum_values("collection_management_processing_priority").map{|v| [I18n.t("enumerations.collection_management_processing_priority.#{v}", :default => v), v]}
+
 classifications = JSONModel.enum_values("user_defined_enum_1").map{|v| [I18n.t("enumerations.user_defined_enum_1.#{v}", :default => v), v]}
+
+field_archivists = JSONModel::HTTP.get_json("/repositories/#{session[:repo_id]}/bhl_aspace_reports/field_archivists")
 %>
 
 <hr>
 <div class="form-group">
-	<label class="control-label col-sm-2">Processing Status</label>
-	<div class="controls col-sm-8">
-		<%= select_tag("job[job_params][processing_status]", options_for_select(["", "No Defined Value", "Any Defined Value"].concat(processing_statuses)), :class => "form-control") %>
-	</div>
+    <label class="control-label col-sm-2">Processing Status</label>
+    <div class="controls col-sm-8">
+        <%= select_tag("job[job_params][processing_status]", options_for_select(["", "No Defined Value", "Any Defined Value"].concat(processing_statuses)), :class => "form-control") %>
+    </div>
 </div>
 
 <div class="form-group">
-	<label class="control-label col-sm-2">Processing Priority</label>
-	<div class="controls col-sm-8">
-		<%= select_tag("job[job_params][processing_priority]", options_for_select(["", "No Defined Value", "Any Defined Value"].concat(processing_priorities)), :class => "form-control") %>
-	</div>
+    <label class="control-label col-sm-2">Processing Priority</label>
+    <div class="controls col-sm-8">
+        <%= select_tag("job[job_params][processing_priority]", options_for_select(["", "No Defined Value", "Any Defined Value"].concat(processing_priorities)), :class => "form-control") %>
+    </div>
 </div>
 
 <div class="form-group">
-	<label class="control-label col-sm-2">Classification</label>
-	<div class="controls col-sm-8">
-		<%= select_tag("job[job_params][classification]", options_for_select([""].concat(classifications)), :class => "form-control") %>
-	</div>
+    <label class="control-label col-sm-2">Classification</label>
+    <div class="controls col-sm-8">
+        <%= select_tag("job[job_params][classification]", options_for_select([""].concat(classifications)), :class => "form-control") %>
+    </div>
+</div>
+
+<div class="form-group">
+    <label class="control-label col-sm-2">Field Archivist</label>
+    <div class="controls col-sm-8">
+        <%= select_tag("job[job_params][field_archivist]", options_for_select([""].concat(field_archivists)), :class => "form-control") %>
+    </div>
 </div>
 
 
 <div class="form-group">
-	<% form.push("donor") do |form| %>
-		<%= render_aspace_partial :partial => "agents/linker", :locals => { :form => form, :hide_create => true, :linker_label => "Donor", :optional => true, :multiplicity => "one" } %>
-	<% end %>
+    <% form.push("donor") do |form| %>
+        <%= render_aspace_partial :partial => "agents/linker", :locals => { :form => form, :hide_create => true, :linker_label => "Donor", :optional => true, :multiplicity => "one" } %>
+    <% end %>
 </div>

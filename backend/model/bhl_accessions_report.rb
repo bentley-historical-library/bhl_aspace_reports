@@ -11,7 +11,7 @@ class BhlAccessionsReport < AbstractReport
   
   include JSONModel
 
-  attr_reader :processing_status, :processing_priority, :classification, :donor_uri, :donor_type, :donor_id
+  attr_reader :processing_status, :processing_priority, :classification, :donor_uri, :donor_type, :donor_id, :field_archivist
 
   def initialize(params, job)
     super
@@ -25,6 +25,10 @@ class BhlAccessionsReport < AbstractReport
 
     if ASUtils.present?(params['classification'])
       @classification = params["classification"]
+    end
+
+    if ASUtils.present?(params['field_archivist'])
+      @field_archivist = params["field_archivist"]
     end
 
     if ASUtils.present?(params["from"])
@@ -63,7 +67,7 @@ class BhlAccessionsReport < AbstractReport
   end
 
   def headers
-    ['identifier', 'donor_name', 'donor_number', 'accession_date', 'content_description', 'processing_status', 'processing_priority', 'classifications', 'extent_number_type', 'location']
+    ['identifier', 'donor_name', 'donor_number', 'accession_date', 'content_description', 'processing_status', 'processing_priority', 'classifications', 'extent_number_type', 'location', 'field_archivist']
   end
 
   def processor
@@ -78,11 +82,17 @@ class BhlAccessionsReport < AbstractReport
   end
 
   def query(db)
-    source_enum_id = db[:enumeration].filter(:name=>'linked_agent_role').join(:enumeration_value, :enumeration_id => :id).where(:value => 'source').all[0][:id]
-
+    source_enum_id = db[:enumeration].filter(:name=>'linked_agent_role').join(:enumeration_value, :enumeration_id => Sequel.qualify(:enumeration, :id)).where(:value => 'source').all[0][:id]
+    custody_transfer_id = db[:enumeration].filter(:name=>'event_event_type').join(:enumeration_value, :enumeration_id => Sequel.qualify(:enumeration, :id)).where(:value => 'custody_transfer').all[0][:id]
+    field_archivist_id = db[:enumeration].filter(:name => 'linked_agent_event_roles').join(:enumeration_value, :enumeration_id => Sequel.qualify(:enumeration, :id)).where(:value => 'field_archivist').all[0][:id]
+    
     dataset = db[:accession].where(:accession_date => (@from..@to)).
-    left_outer_join(:linked_agents_rlshp, [[:accession_id, Sequel.qualify(:accession, :id)], [:role_id, source_enum_id]]).
+    left_outer_join(:linked_agents_rlshp, [[:accession_id, Sequel.qualify(:accession, :id)], [:role_id, source_enum_id]], :table_alias => :source_linked_agents_rlshp).
     left_outer_join(:collection_management, :accession_id => Sequel.qualify(:accession, :id)).
+    left_outer_join(:event_link_rlshp, :accession_id => Sequel.qualify(:accession, :id)).
+    left_outer_join(:event, [[Sequel.qualify(:event, :id), Sequel.qualify(:event_link_rlshp, :event_id)], [:event_type_id, custody_transfer_id]]).
+    left_outer_join(:linked_agents_rlshp, [[:event_id, Sequel.qualify(:event, :id)], [:role_id, field_archivist_id]], :table_alias => :field_archivist_linked_agents_rlshp).
+    left_outer_join(:name_person, :agent_person_id => Sequel.qualify(:field_archivist_linked_agents_rlshp, :agent_person_id)).
     join(:enumeration,
         {
           :name => "collection_management_processing_status"
@@ -119,6 +129,7 @@ class BhlAccessionsReport < AbstractReport
       Sequel.qualify(:accession, :accession_date).as(:accession_date),
       Sequel.qualify(:accession, :identifier),
       Sequel.qualify(:accession, :content_description),
+      Sequel.qualify(:name_person, :sort_name).as(:field_archivist),
       Sequel.as(Sequel.lit('GetAccessionLocationUserDefined(accession.id)'), :location),
       Sequel.as(Sequel.lit('GetAccessionProcessingStatus(accession.id)'), :processing_status),
       Sequel.as(Sequel.lit('GetAccessionProcessingPriority(accession.id)'), :processing_priority),
@@ -156,7 +167,11 @@ class BhlAccessionsReport < AbstractReport
     end
 
     if donor_uri
-      dataset = dataset.where(Sequel.qualify(:linked_agents_rlshp, :"#{@donor_type}_id") => @donor_id)
+      dataset = dataset.where(Sequel.qualify(:source_linked_agents_rlshp, :"#{@donor_type}_id") => @donor_id)
+    end
+
+    if field_archivist
+      dataset = dataset.where(Sequel.qualify(:name_person, :sort_name) => @field_archivist)
     end
 
     dataset
