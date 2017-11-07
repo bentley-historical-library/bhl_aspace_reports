@@ -61,7 +61,7 @@ class BhlAccessionsReport < AbstractReport
   end
 
   def headers
-    ['identifier', 'donor_name', 'donor_number', 'accession_date', 'content_description', 'processing_status', 'processing_priority', 'classifications', 'extent_number_type', 'location', 'field_archivist']
+    ['identifier', 'donor_name', 'donor_number', 'accession_date', 'content_description', 'processing_status', 'processing_priority', 'classifications', 'extent_number_type', 'location', 'field_archivists']
   end
 
   def processor
@@ -123,7 +123,7 @@ class BhlAccessionsReport < AbstractReport
       Sequel.qualify(:accession, :accession_date).as(:accession_date),
       Sequel.qualify(:accession, :identifier),
       Sequel.qualify(:accession, :content_description),
-      Sequel.qualify(:name_person, :sort_name).as(:field_archivist),
+      Sequel.as(Sequel.lit('GetAccessionFieldArchivists(accession.id)'), :field_archivists),
       Sequel.as(Sequel.lit('GetAccessionLocationUserDefined(accession.id)'), :location),
       Sequel.as(Sequel.lit('GetAccessionProcessingStatus(accession.id)'), :processing_status),
       Sequel.as(Sequel.lit('GetAccessionProcessingPriority(accession.id)'), :processing_priority),
