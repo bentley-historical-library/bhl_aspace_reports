@@ -1,14 +1,12 @@
 class BhlRevisionsReport < AbstractReport
   
   register_report({
-                    :uri_suffix => "bhl_revisions_report",
-                    :description => "Bentley Historical Library Revision Statements Report",
                     :params => [["from", Date, "The start of report range"],
                                 ["to", Date, "The start of report range"]]
                   })
 
 
-  def initialize(params, job)
+  def initialize(params, job, db)
     super
 
     if ASUtils.present?(params["from"])
@@ -25,11 +23,6 @@ class BhlRevisionsReport < AbstractReport
 
     @from = DateTime.parse(from).to_time.strftime("%Y-%m-%d %H:%M:%S")
     @to = DateTime.parse(to).to_time.strftime("%Y-%m-%d %H:%M:%S")
-  end
-
-
-  def title
-    "Bentley Historical Library Revision Statements Report"
   end
 
   def headers
@@ -51,7 +44,7 @@ class BhlRevisionsReport < AbstractReport
     dataset
   end
 
-  def query(db)
+  def query
     resource_ids = db[:revision_statement].where(:date=>(@from..@to)).
     left_outer_join(:resource, Sequel.qualify(:resource, :id) => Sequel.qualify(:revision_statement, :resource_id)).
     select(

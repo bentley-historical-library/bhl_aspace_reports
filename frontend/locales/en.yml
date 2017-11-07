@@ -1,8 +1,20 @@
 en:
   reports:
-    BhlDARTReport: BHL DART Report 
-    BhlAccessionsExtentReport: BHL Accessions Extent Report 
-    BhlAccessionsReport: BHL Accessions Report
-    BhlRestrictionsReport: BHL Restrictions Report
-    BhlRevisionsReport: BHL Revisions Report
-    BhlUnreportedAccessionsReport: BHL non-DART Accessions Report
+    bhl_dart_report:
+      title: BHL DART Report
+      description: Bentley Historical Library DART Report
+    bhl_accessions_extent_report:
+      title: BHL Accessions Extent Report
+      description: Bentley Historical Library Accessions Extent Report
+    bhl_accessions_report:
+      title: BHL Accessions Report
+      description: Bentley Historical Library Accessions Report
+    bhl_restrictions_report:
+      title: BHL Restrictions Report
+      description: Bentley Historical Library Restrictions Report
+    bhl_revisions_report:
+      title: BHL Revisions Report
+      description: Bentley Historical Library Revision Statements Report
+    bhl_unreported_accessions_report:
+      title: BHL non-DART Accessions Report
+      description: Bentley Historical Library non-DART Accessions Report
