@@ -1,19 +1,10 @@
 class BhlRestrictionsReport < AbstractReport
   
-  register_report({
-                    :uri_suffix => "bhl_restrictions_report",
-                    :description => "Bentley Historical Library Restrictions Report",
-                    :params => []
-                  })
+  register_report
 
-  def initialize(params, job)
+  def initialize(params, job, db)
     super
 
-  end
-
-
-  def title
-    "Bentley Historical Library Restrictions Report"
   end
 
   def headers
@@ -37,7 +28,7 @@ class BhlRestrictionsReport < AbstractReport
     dataset
   end
 
-  def query(db)
+  def query
     resource_ids = db[:note].
     where(Sequel.like(:notes, "%accessrestrict%")).
     exclude(Sequel.qualify(:note, :archival_object_id) => nil).

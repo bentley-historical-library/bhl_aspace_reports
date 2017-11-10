@@ -1,8 +1,6 @@
 class BhlAccessionsReport < AbstractReport
   
   register_report({
-                    :uri_suffix => "bhl_accessions_report",
-                    :description => "Bentley Historical Library Accessions Report",
                     :params => [["from", Date, "The start of report range"],
                                 ["to", Date, "The end of report range"],
                                 ["Additional Parameters", "accessionsparams", "Additional Accession parameters"]]
@@ -13,7 +11,7 @@ class BhlAccessionsReport < AbstractReport
 
   attr_reader :processing_status, :processing_priority, :classification, :donor_uri, :donor_type, :donor_id, :field_archivist
 
-  def initialize(params, job)
+  def initialize(params, job, db)
     super
     if ASUtils.present?(params['processing_status'])
       @processing_status = params["processing_status"]
@@ -62,12 +60,8 @@ class BhlAccessionsReport < AbstractReport
     # extent: calculate a total
   end
 
-  def title
-    "Bentley Historical Library Accessions Report"
-  end
-
   def headers
-    ['identifier', 'donor_name', 'donor_number', 'accession_date', 'content_description', 'processing_status', 'processing_priority', 'classifications', 'extent_number_type', 'location', 'field_archivist']
+    ['identifier', 'donor_name', 'donor_number', 'accession_date', 'content_description', 'processing_status', 'processing_priority', 'classifications', 'extent_number_type', 'location', 'field_archivists']
   end
 
   def processor
@@ -81,7 +75,7 @@ class BhlAccessionsReport < AbstractReport
     dataset
   end
 
-  def query(db)
+  def query
     source_enum_id = db[:enumeration].filter(:name=>'linked_agent_role').join(:enumeration_value, :enumeration_id => Sequel.qualify(:enumeration, :id)).where(:value => 'source').all[0][:id]
     custody_transfer_id = db[:enumeration].filter(:name=>'event_event_type').join(:enumeration_value, :enumeration_id => Sequel.qualify(:enumeration, :id)).where(:value => 'custody_transfer').all[0][:id]
     field_archivist_id = db[:enumeration].filter(:name => 'linked_agent_event_roles').join(:enumeration_value, :enumeration_id => Sequel.qualify(:enumeration, :id)).where(:value => 'field_archivist').all[0][:id]
@@ -129,7 +123,7 @@ class BhlAccessionsReport < AbstractReport
       Sequel.qualify(:accession, :accession_date).as(:accession_date),
       Sequel.qualify(:accession, :identifier),
       Sequel.qualify(:accession, :content_description),
-      Sequel.qualify(:name_person, :sort_name).as(:field_archivist),
+      Sequel.as(Sequel.lit('GetAccessionFieldArchivists(accession.id)'), :field_archivists),
       Sequel.as(Sequel.lit('GetAccessionLocationUserDefined(accession.id)'), :location),
       Sequel.as(Sequel.lit('GetAccessionProcessingStatus(accession.id)'), :processing_status),
       Sequel.as(Sequel.lit('GetAccessionProcessingPriority(accession.id)'), :processing_priority),
@@ -137,7 +131,9 @@ class BhlAccessionsReport < AbstractReport
       Sequel.as(Sequel.lit('GetAccessionExtentNumberType(accession.id)'), :extent_number_type),
       Sequel.as(Sequel.lit('GetAccessionSourceName(accession.id)'), :donor_name),
       Sequel.as(Sequel.lit('GetAccessionDonorNumbers(accession.id)'), :donor_number),
-      ).group(Sequel.qualify(:accession, :id))
+      ).
+    group(Sequel.qualify(:accession, :id)).
+    order(Sequel.asc(:accession_date))
 
     dataset = dataset.where(Sequel.qualify(:accession, :repo_id) => @repo_id)
 

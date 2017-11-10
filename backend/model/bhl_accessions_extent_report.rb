@@ -1,8 +1,6 @@
 class BhlAccessionsExtentReport < AbstractReport
   
   register_report({
-                    :uri_suffix => "bhl_accessions_extent_report",
-                    :description => "Bentley Historical Library Accessions Extent Report",
                     :params => [["from", Date, "The start of report range"],
                                 ["to", Date, "The start of report range"],
                                 ["Additional Parameters", "accessionsextentparams", "Additional Accessions Extent parameters"]]
@@ -10,7 +8,7 @@ class BhlAccessionsExtentReport < AbstractReport
 
   attr_reader :classification
 
-  def initialize(params, job)
+  def initialize(params, job, db)
     super
 
     if ASUtils.present?(params['classification'])
@@ -33,11 +31,6 @@ class BhlAccessionsExtentReport < AbstractReport
     @to = DateTime.parse(to).to_time.strftime("%Y-%m-%d %H:%M:%S")
   end
 
-
-  def title
-    "Bentley Historical Library Accessions Extent Report"
-  end
-
   def headers
     ['totalNumber', 'extentType']
   end
@@ -51,7 +44,7 @@ class BhlAccessionsExtentReport < AbstractReport
     dataset
   end
 
-  def query(db)    
+  def query   
     dataset = db[:accession].where(:accession_date => (@from..@to)).
     left_outer_join(:user_defined, :accession_id => Sequel.qualify(:accession, :id)).
     left_outer_join(:extent, :accession_id => Sequel.qualify(:accession, :id)).

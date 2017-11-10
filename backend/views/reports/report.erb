@@ -1,0 +1,220 @@
+<% if layout? %>
+
+<% if @report.template == 'generic_listing.erb' %>
+  <!-- Listing template should be printed as landscape to fit on the page -->
+  <% orientation = 'landscape' %>
+<% else %>
+  <% orientation = @report.orientation %>
+<% end %>
+
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta http-equiv="content-type" content="text/html;charset=utf-8" />
+    <style media="screen,print">
+        /* ArchivesSpace reporting Stylesheet */
+      <% if @report.format.to_sym === :pdf %>
+        <% AppConfig[:report_pdf_font_paths].each do |font_path| %>
+          @font-face {
+            src: url('<%= font_path %>');
+            -fs-pdf-font-embed: embed;
+            -fs-pdf-font-encoding: Identity-H;
+          }
+        <% end %>
+
+        body {
+          font-family: <%= AppConfig[:report_pdf_font_family] %>;
+        }
+      <% else %>
+        body {
+          font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+          max-width: 900px;
+        }
+      <% end %>
+
+      .header .logo {
+        display: none;
+      }
+
+      .header h1 {
+        margin-top: 1em;
+        font-size: 1.8em;
+      }
+
+      table h2,
+      table h3 {
+        margin: 10px 0 0;
+      }
+
+      .titlepage {
+        border: 1px solid black;
+        padding: 1em;
+        page-break-after: always;
+        height: 100%;
+      }
+
+      .titlepage .title {
+        font-weight: bold;
+        font-size: 36pt;
+        display: table;
+        margin: 0 auto;
+
+      }
+
+      .report-record {
+        margin-top: 2em;
+        padding-bottom: 2em;
+        border-bottom: 2px solid black;
+        page-break-before: always;
+      }
+
+      section > h3 {
+          page-break-after: avoid;
+      }
+
+      dl {
+        margin-top: 1em;
+      }
+
+      dt {
+        float: left;
+        padding: 0;
+        font-weight: bold;
+        margin-right: 10px;
+      }
+
+      dt:after {
+        content: ": "
+      }
+
+      dd {
+        display: block;
+        margin: 2px;
+        padding: 0;
+      }
+
+      .identifier {
+        margin-top: 1em;
+        margin-bottom: 0.25em;
+        font-size: 24pt;
+        font-weight: bold;
+      }
+
+      .record-title {
+        font-style: italic;
+        margin-bottom: 1em;
+      }
+
+      h3 {
+        font-size: 100%;
+        font-weight: bold;
+      }
+
+      table {
+        border-collapse: collapse;
+        border-bottom: 1px solid black;
+        margin-left: 1em;
+        width: 90%;
+        page-break-inside: avoid;
+      }
+
+      table th {
+        border-top: solid 2px black;
+        border-bottom: solid 1px black;
+        text-align: left;
+        padding-left: 0.25em;
+        padding-right: 1em;
+        margin: 0;
+      }
+
+      table td {
+        padding: 0.5em 0.5em 0.5em 0.25em;
+      }     
+
+      .report-listing {
+        border: 1px solid #AAA;
+        border-collapse: collapse;
+        table-layout: fixed;
+        width: 100%;
+        clear: both;
+      }
+
+      .report-listing th,
+      .report-listing td {
+        border: 1px solid #AAA;
+        padding: 4px;
+        vertical-align: top;
+        word-break: break-all;
+      }
+
+      .report-listing th {
+        background-color: #F1F1F1;
+      }
+
+      .report-listing tr:nth-child(2n-1) td {
+        background-color: #FaFaFa;
+      }
+
+      @page {
+        size: <%= @report.layout %> <%= orientation %>;
+        -fs-flow-bottom: "footer";
+      }
+
+      thead {
+        display: table-header-group;
+      }
+      .pdf table {
+        -fs-table-paginate: paginate;
+        border-collapse: separate;
+        border-spacing: 0px;
+      }
+
+      .page-break {
+        page-break-after: always;
+      }
+
+      @page {
+        @bottom-center {
+          content: element(footer);
+        }
+      }
+
+      .html #footer {
+        text-align: center;
+        font-size:  0.9em;
+        margin-top: 20px;
+      }
+
+      .pdf {
+        font-size: 11px;
+      }
+
+      .pdf #footer .timestamp {
+        position: absolute;
+        bottom: 10px;
+        left: 0;
+        font-size: 0.8em;
+      }
+    </style>
+  </head>
+
+  <body class="<%= @report.format %>">
+    <%= render(@report.template) %>
+
+    <% if @report.format === 'html' or @report.format === 'pdf' %>
+      <% time = DateTime.now %>
+      <div id="footer" class="footer" style="position: running(footer);">
+        <div class="timestamp">
+          <% if @report.repo_id %>Scoped for Repository: <%= h @report.repo_id %><br/><% end %>
+          Report Generated at <%= h time.strftime("%Y-%m-%d %H:%M %Z") %>
+        </div>
+      </div>
+    <% end %>
+
+  </body>
+</html>
+
+<% else %>
+   <!-- <%= h @report.template %>  -->
+    <%= render(@report.template) %>
+<% end %>

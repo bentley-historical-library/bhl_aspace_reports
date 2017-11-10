@@ -1,14 +1,12 @@
-class BhlDARTReport < AbstractReport
+class BhlDartReport < AbstractReport
   
   register_report({
-                    :uri_suffix => "bhl_dart_report",
-                    :description => "Bentley Historical Library DART Report",
                     :params => [["from", Date, "The start of report range"],
                                 ["to", Date, "The end of report range"]]
                   })
 
 
-  def initialize(params, job)
+  def initialize(params, job, db)
     super
     if ASUtils.present?(params["from"])
       from = params["from"]
@@ -24,11 +22,6 @@ class BhlDARTReport < AbstractReport
 
     @from = DateTime.parse(from).to_time.strftime("%Y-%m-%d %H:%M:%S")
     @to = DateTime.parse(to).to_time.strftime("%Y-%m-%d %H:%M:%S")
-  end
-
-
-  def title
-    "Bentley Historical Library DART Report"
   end
 
   def headers
@@ -52,7 +45,7 @@ class BhlDARTReport < AbstractReport
     dataset
   end
 
-  def query(db)
+  def query
     source_enum_id = db[:enumeration].filter(:name=>'linked_agent_role').join(:enumeration_value, :enumeration_id => :id).where(:value => 'source').all[0][:id]
     
     accession_ids = db[:accession].where(:accession_date => (@from..@to)).map(:id)
@@ -79,7 +72,7 @@ class BhlDARTReport < AbstractReport
       Sequel.as(Sequel.lit('GetAgentDARTLID(linked_agents_rlshp.agent_person_id, linked_agents_rlshp.agent_family_id, linked_agents_rlshp.agent_corporate_entity_id)'), :DART_LID)
       ).
     where(Sequel.qualify(:accession, :repo_id) => @repo_id).
-    group(Sequel.qualify(:accession, :id)).
+    group(Sequel.qualify(:accession, :id), Sequel.qualify(:linked_agents_rlshp, :id)).
     order(Sequel.asc(:accession_date))
 
     dataset = dataset.where(Sequel.lit('GetEnumValue(user_defined.enum_1_id) IN ("MHC", "FAC")')).or(Sequel.lit('GetEnumValue(user_defined.enum_2_id) IN ("MHC", "FAC")')).or(Sequel.lit('GetEnumValue(user_defined.enum_3_id) IN ("MHC", "FAC")'))

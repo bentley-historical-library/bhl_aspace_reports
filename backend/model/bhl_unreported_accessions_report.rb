@@ -1,14 +1,12 @@
 class BhlUnreportedAccessionsReport < AbstractReport
   
   register_report({
-                    :uri_suffix => "bhl_unreported_accessions_report",
-                    :description => "Bentley Historical Library non-DART Accessions Report",
                     :params => [["from", Date, "The start of report range"],
                                 ["to", Date, "The end of report range"]]
                   })
 
 
-  def initialize(params, job)
+  def initialize(params, job, db)
     super
     if ASUtils.present?(params["from"])
       from = params["from"]
@@ -24,11 +22,6 @@ class BhlUnreportedAccessionsReport < AbstractReport
 
     @from = DateTime.parse(from).to_time.strftime("%Y-%m-%d %H:%M:%S")
     @to = DateTime.parse(to).to_time.strftime("%Y-%m-%d %H:%M:%S")
-  end
-
-
-  def title
-    "Bentley Historical Library non-DART Accessions Report"
   end
 
   def headers
@@ -47,7 +40,7 @@ class BhlUnreportedAccessionsReport < AbstractReport
     dataset
   end
 
-  def query(db)
+  def query
     source_enum_id = db[:enumeration].filter(:name=>'linked_agent_role').join(:enumeration_value, :enumeration_id => :id).where(:value => 'source').all[0][:id]
     
     accession_ids = db[:accession].where(:accession_date => (@from..@to)).map(:id)
