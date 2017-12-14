@@ -3,6 +3,7 @@ en:
     BhlDARTReport: BHL DART Report 
     BhlAccessionsExtentReport: BHL Accessions Extent Report 
     BhlAccessionsReport: BHL Accessions Report
+    BhlFormatsReport: BHL Formats Report
     BhlRestrictionsReport: BHL Restrictions Report
     BhlRevisionsReport: BHL Revisions Report
     BhlUnreportedAccessionsReport: BHL non-DART Accessions Report
