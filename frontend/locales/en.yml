@@ -9,6 +9,9 @@ en:
     bhl_accessions_report:
       title: BHL Accessions Report
       description: Bentley Historical Library Accessions Report
+    bhl_formats_report:
+      title: BHL Formats Report
+      description: Bentley Historical Library Formats Report
     bhl_restrictions_report:
       title: BHL Restrictions Report
       description: Bentley Historical Library Restrictions Report
