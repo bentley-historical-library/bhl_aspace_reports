@@ -79,7 +79,7 @@ class BhlFormatsReport < AbstractReport
       Sequel.as(Sequel.lit('GetArchivalObjectContainers(archival_object.id)'), :containers),
       Sequel.as(Sequel.lit('GetArchivalObjectBreadcrumb(archival_object.id)'), :breadcrumb)
       ).
-    where(Sequel.lit('GetEnumValue(extent.extent_type_id)') => @formats_array)#.
+    where(Sequel.lit('GetEnumValue(extent.extent_type_id)') => @formats_array).
     or(Sequel.ilike(Sequel.qualify(:extent, :physical_details), @formats_regex)).
     or(Sequel.ilike(Sequel.lit('GetArchivalObjectNoteByType(archival_object.id, "physfacet")'), @formats_regex)).
     group(Sequel.qualify(:archival_object, :id))
