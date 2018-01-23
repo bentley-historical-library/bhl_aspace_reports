@@ -72,7 +72,8 @@ class BhlAccessionsReport < AbstractReport
 
   def processor
     {
-      'identifier' => proc {|record| ASUtils.json_parse(record[:identifier] || "[]").compact.join("-")}
+      'identifier' => proc {|record| ASUtils.json_parse(record[:identifier] || "[]").compact.join("-")},
+      'field_archivist' => proc {|record| record[:staff_received] ? record[:staff_received] : record[:field_archivist]}
     }
   end
 
@@ -130,6 +131,7 @@ class BhlAccessionsReport < AbstractReport
       Sequel.qualify(:accession, :identifier),
       Sequel.qualify(:accession, :content_description),
       Sequel.qualify(:name_person, :sort_name).as(:field_archivist),
+      Sequel.qualify(:user_defined, :string_1).as(:staff_received),
       Sequel.as(Sequel.lit('GetAccessionLocationUserDefined(accession.id)'), :location),
       Sequel.as(Sequel.lit('GetAccessionProcessingStatus(accession.id)'), :processing_status),
       Sequel.as(Sequel.lit('GetAccessionProcessingPriority(accession.id)'), :processing_priority),
