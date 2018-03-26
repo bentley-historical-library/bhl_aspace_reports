@@ -1,3 +1,4 @@
+require 'csv'
 class BhlFormatsReport < AbstractReport
   
   register_report({
@@ -21,7 +22,17 @@ class BhlFormatsReport < AbstractReport
       permutations << format_variation.gsub("-", " ")
     end
 
-    permutations
+    permutations.uniq
+  end
+
+  # Workaround to avoid new ArchivesSpace csv_response
+  def to_csv
+    CSV.generate do |csv|
+      csv << headers
+      each do |row|
+        csv << headers.map{|header| row[header]}
+      end
+    end
   end
 
   def initialize(params, job, db)
@@ -50,13 +61,12 @@ class BhlFormatsReport < AbstractReport
   def processor
     {
       'call_number' => proc {|record| ASUtils.json_parse(record[:resource_identifier] || "[]").compact.join("-")},
-      'physical_details_note' => proc {|record| if record[:notes]
-                                                  ASUtils.json_parse(record[:notes])["content"][0]
-                                                else
-                                                  ""
-                                                end
-                                      }
-  
+      'physical_details_note' => proc {|record| if record[:physical_details_note]
+                                        ASUtils.json_parse(record[:physical_details_note])["content"][0]
+                                      else
+                                        ""
+                                      end
+                                  }  
     }
   end
 
@@ -66,10 +76,25 @@ class BhlFormatsReport < AbstractReport
   end
 
   def query
+    archival_object_ids = []
+
+    extent_matches = db[:extent].
+    exclude(:archival_object_id => nil).
+    where(Sequel.lit('GetEnumValue(extent.extent_type_id) IN :formats', formats: @formats_array) | Sequel.ilike(:physical_details, @formats_regex)).
+    map(:archival_object_id).uniq
+    archival_object_ids.concat(extent_matches)
+
+    note_matches = db[:note].
+    exclude(:archival_object_id => nil).
+    exclude(:archival_object_id => archival_object_ids).
+    where(Sequel.like(:notes, "%physfacet%")).
+    where(Sequel.ilike(:notes, @formats_regex)).
+    map(:archival_object_id).uniq
+    archival_object_ids.concat(note_matches)
+
     dataset = db[:archival_object].
+    filter(Sequel.qualify(:archival_object, :id) => archival_object_ids).
     left_outer_join(:resource, Sequel.qualify(:resource, :id) => Sequel.qualify(:archival_object, :root_record_id)).
-    left_outer_join(:extent, Sequel.qualify(:extent, :archival_object_id) => Sequel.qualify(:archival_object, :id)).
-    left_outer_join(:note, Sequel.qualify(:note, :archival_object_id) => Sequel.qualify(:archival_object, :id)).
     select(
       Sequel.qualify(:archival_object, :id).as(:archival_object_id),
       Sequel.qualify(:archival_object, :component_id).as(:component_unique_id),
@@ -79,13 +104,10 @@ class BhlFormatsReport < AbstractReport
       Sequel.as(Sequel.lit('GetArchivalObjectDigitalObject(archival_object.id)'), :digital_object),
       Sequel.as(Sequel.lit('GetResourceCallNumber(archival_object.root_record_id)'), :resource_identifier),
       Sequel.as(Sequel.lit('GetArchivalObjectExtent(archival_object.id)'), :extents),
-      Sequel.as(Sequel.lit('GetArchivalObjectNoteByType(archival_object.id, "physfacet")'), :notes),
+      Sequel.as(Sequel.lit('GetArchivalObjectNoteByType(archival_object.id, "physfacet")'), :physical_details_note),
       Sequel.as(Sequel.lit('GetArchivalObjectContainers(archival_object.id)'), :containers),
       Sequel.as(Sequel.lit('GetArchivalObjectBreadcrumb(archival_object.id)'), :breadcrumb)
       ).
-    where(Sequel.lit('GetEnumValue(extent.extent_type_id)') => @formats_array).
-    or(Sequel.ilike(Sequel.qualify(:extent, :physical_details), @formats_regex)).
-    or(Sequel.ilike(Sequel.lit('GetArchivalObjectNoteByType(archival_object.id, "physfacet")'), @formats_regex)).
     group(Sequel.qualify(:archival_object, :id))
 
     dataset.where(Sequel.qualify(:archival_object, :repo_id) => @repo_id)
