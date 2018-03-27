@@ -94,6 +94,7 @@ class BhlFormatsReport < AbstractReport
 
     dataset = db[:archival_object].
     filter(Sequel.qualify(:archival_object, :id) => archival_object_ids).
+    filter(Sequel.qualify(:archival_object, :repo_id) => @repo_id).
     left_outer_join(:resource, Sequel.qualify(:resource, :id) => Sequel.qualify(:archival_object, :root_record_id)).
     select(
       Sequel.qualify(:archival_object, :id).as(:archival_object_id),
@@ -101,8 +102,8 @@ class BhlFormatsReport < AbstractReport
       Sequel.qualify(:archival_object, :root_record_id).as(:resource_id),
       Sequel.qualify(:archival_object, :display_string).as(:display_string),
       Sequel.qualify(:resource, :title).as(:collection_title),
+      Sequel.qualify(:resource, :identifier).as(:resource_identifier),
       Sequel.as(Sequel.lit('GetArchivalObjectDigitalObject(archival_object.id)'), :digital_object),
-      Sequel.as(Sequel.lit('GetResourceCallNumber(archival_object.root_record_id)'), :resource_identifier),
       Sequel.as(Sequel.lit('GetArchivalObjectExtent(archival_object.id)'), :extents),
       Sequel.as(Sequel.lit('GetArchivalObjectNoteByType(archival_object.id, "physfacet")'), :physical_details_note),
       Sequel.as(Sequel.lit('GetArchivalObjectContainers(archival_object.id)'), :containers),
@@ -110,6 +111,6 @@ class BhlFormatsReport < AbstractReport
       ).
     group(Sequel.qualify(:archival_object, :id))
 
-    dataset.where(Sequel.qualify(:archival_object, :repo_id) => @repo_id)
+    dataset
   end
 end

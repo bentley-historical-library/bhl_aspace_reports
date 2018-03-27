@@ -17,11 +17,11 @@ BEGIN
     FROM
         digital_object
     JOIN
-        instance_do_link_rlshp ON instance_do_link_rlshp.digital_object_id = digital_object.id
+        instance_do_link_rlshp ON instance_do_link_rlshp.`digital_object_id` = digital_object.`id`
     JOIN
-        instance ON instance.id = instance_do_link_rlshp.instance_id
+        instance ON instance.`id` = instance_do_link_rlshp.`instance_id`
     WHERE
-        instance.archival_object_id = f_archival_object_id;
+        instance.`archival_object_id` = f_archival_object_id LIMIT 1;
 
     RETURN f_value;
 END 
