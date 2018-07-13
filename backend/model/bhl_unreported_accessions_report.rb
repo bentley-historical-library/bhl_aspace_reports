@@ -83,7 +83,7 @@ class BhlUnreportedAccessionsReport < AbstractReport
       Sequel.as(Sequel.lit('GetAgentDARTLID(linked_agents_rlshp.agent_person_id, linked_agents_rlshp.agent_family_id, linked_agents_rlshp.agent_corporate_entity_id)'), :DART_LID)
       ).
     where(Sequel.qualify(:accession, :repo_id) => @repo_id).
-    group(Sequel.qualify(:accession, :id)).
+    group(Sequel.qualify(:accession, :id), Sequel.qualify(:linked_agents_rlshp, :id)).
     order(Sequel.asc(:accession_date))
 
     dataset = dataset.where{Sequel.lit('(user_defined.enum_1_id IS NULL OR NOT GetEnumValue(user_defined.enum_1_id) IN ("MHC", "FAC")) AND (user_defined.enum_2_id IS NULL OR NOT GetEnumValue(user_defined.enum_2_id) IN ("MHC", "FAC")) AND (user_defined.enum_3_id IS NULL OR NOT GetEnumValue(user_defined.enum_3_id) IN ("MHC", "FAC"))')}
