@@ -138,7 +138,7 @@ class BhlAccessionsReport < AbstractReport
       Sequel.qualify(:accession, :accession_date).as(:accession_date),
       Sequel.qualify(:accession, :identifier),
       Sequel.qualify(:accession, :content_description),
-      Sequel.qualify(:user_defined, :string_1).as(:staff_received),
+      Sequel.as(Sequel.lit('GROUP_CONCAT(user_defined.string_1 SEPARATOR "; ")'), :staff_received),
       Sequel.as(Sequel.lit('GetAccessionFieldArchivists(accession.id)'), :field_archivists),
       Sequel.as(Sequel.lit('GetAccessionLocationUserDefined(accession.id)'), :location),
       Sequel.as(Sequel.lit('GetAccessionProcessingStatus(accession.id)'), :processing_status),
