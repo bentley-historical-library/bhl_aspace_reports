@@ -5,6 +5,15 @@ class BhlRevisionsReport < AbstractReport
                                 ["to", Date, "The start of report range"]]
                   })
 
+  # Workaround to avoid new ArchivesSpace csv_response
+  def to_csv
+    CSV.generate do |csv|
+      csv << headers
+      each do |row|
+        csv << headers.map{|header| row[header]}
+      end
+    end
+  end
 
   def initialize(params, job, db)
     super
@@ -23,6 +32,10 @@ class BhlRevisionsReport < AbstractReport
 
     @from = DateTime.parse(from).to_time.strftime("%Y-%m-%d %H:%M:%S")
     @to = DateTime.parse(to).to_time.strftime("%Y-%m-%d %H:%M:%S")
+  end
+
+  def title
+    "Bentley Historical Library Revisions Report"
   end
 
   def headers

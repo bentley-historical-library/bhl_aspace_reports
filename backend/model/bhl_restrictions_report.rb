@@ -2,9 +2,23 @@ class BhlRestrictionsReport < AbstractReport
   
   register_report
 
+  # Workaround to avoid new ArchivesSpace csv_response
+  def to_csv
+    CSV.generate do |csv|
+      csv << headers
+      each do |row|
+        csv << headers.map{|header| row[header]}
+      end
+    end
+  end
+  
   def initialize(params, job, db)
     super
 
+  end
+
+  def title
+    "Bentley Historical Library Restrictions Report"
   end
 
   def headers
