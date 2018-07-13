@@ -11,6 +11,16 @@ class BhlAccessionsReport < AbstractReport
 
   attr_reader :processing_status, :processing_priority, :classification, :donor_uri, :donor_type, :donor_id, :field_archivist
 
+  # Workaround to avoid new ArchivesSpace csv_response
+  def to_csv
+    CSV.generate do |csv|
+      csv << headers
+      each do |row|
+        csv << headers.map{|header| row[header]}
+      end
+    end
+  end
+  
   def initialize(params, job, db)
     super
     if ASUtils.present?(params['processing_status'])
@@ -58,6 +68,10 @@ class BhlAccessionsReport < AbstractReport
 
     # TO DO
     # extent: calculate a total
+  end
+
+  def title
+    "Bentley Historical Library Accessions Report"
   end
 
   def headers
