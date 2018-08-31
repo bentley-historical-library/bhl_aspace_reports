@@ -2,7 +2,7 @@ class BhlRevisionsReport < AbstractReport
   
   register_report({
                     :params => [["from", Date, "The start of report range"],
-                                ["to", Date, "The start of report range"]]
+                                ["to", Date, "The end of report range"]]
                   })
 
 
@@ -46,5 +46,5 @@ class BhlRevisionsReport < AbstractReport
   def after_tasks
     info.delete(:repository)
   end
-  
+
 end
