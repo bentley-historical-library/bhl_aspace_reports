@@ -10,16 +10,6 @@ class BhlAccessionsReport < AbstractReport
   include JSONModel
 
   attr_reader :processing_status, :processing_priority, :classification, :donor_uri, :donor_type, :donor_id, :field_archivist
-
-  # Workaround to avoid new ArchivesSpace csv_response
-  def to_csv
-    CSV.generate do |csv|
-      csv << headers
-      each do |row|
-        csv << headers.map{|header| row[header]}
-      end
-    end
-  end
   
   def initialize(params, job, db)
     super
@@ -39,20 +29,9 @@ class BhlAccessionsReport < AbstractReport
       @field_archivist = params["field_archivist"]
     end
 
-    if ASUtils.present?(params["from"])
-      from = params["from"]
-    else
-      from = Time.new(1800, 01, 01).to_s
-    end
-
-    if ASUtils.present?(params["to"])
-      to = params["to"]
-    else
-      to = Time.now.to_s
-    end
-
-    @from = DateTime.parse(from).to_time.strftime("%Y-%m-%d %H:%M:%S")
-    @to = DateTime.parse(to).to_time.strftime("%Y-%m-%d %H:%M:%S")
+    from, to = BHLAspaceReportsHelper.parse_date_params(params)
+    @from = BHLAspaceReportsHelper.format_date(from)
+    @to = BHLAspaceReportsHelper.format_date(to)
 
     if ASUtils.present?(params["donor"])
       @donor_uri = params["donor"]["ref"]
@@ -70,123 +49,89 @@ class BhlAccessionsReport < AbstractReport
     # extent: calculate a total
   end
 
-  def title
-    "Bentley Historical Library Accessions Report"
+  def fix_field_archivists(row)
+    field_archivists = row[:staff_received] ? row[:staff_received] : row[:field_archivists]
+    field_archivists
   end
 
-  def headers
-    ['identifier', 'donor_name', 'donor_number', 'accession_date', 'content_description', 'processing_status', 'processing_priority', 'classifications', 'extent_number_type', 'location', 'field_archivists']
+  def fix_row(row)
+    BHLAspaceReportsHelper.fix_identifier_format_bhl(row)
+    row[:field_archivists] = fix_field_archivists(row)
+    row.delete(:staff_received)
   end
 
-  def processor
-    {
-      'identifier' => proc {|record| ASUtils.json_parse(record[:identifier] || "[]").compact.join("-")},
-      'field_archivists' => proc {|record| record[:staff_received] ? record[:staff_received] : record[:field_archivists]}
-    }
-  end
+  def query_string
+    source_enum_id = db[:enumeration].filter(:name=>'linked_agent_role')
+                        .join(:enumeration_value, :enumeration_id => Sequel.qualify(:enumeration, :id))
+                        .where(:value => 'source')
+                        .select(
+                          Sequel.qualify(:enumeration_value, :id)
+                        ).first[:id]
 
-  def scope_by_repo_id(dataset)
-    # repo scope is applied in the query below
-    dataset
-  end
+    custody_transfer_id = db[:enumeration].filter(:name=>'event_event_type')
+                          .join(:enumeration_value, :enumeration_id => Sequel.qualify(:enumeration, :id))
+                          .where(:value => 'custody_transfer')
+                          .select(
+                            Sequel.qualify(:enumeration_value, :id)
+                          ).first[:id]
 
-  def query
-    source_enum_id = db[:enumeration].filter(:name=>'linked_agent_role').join(:enumeration_value, :enumeration_id => Sequel.qualify(:enumeration, :id)).where(:value => 'source').all[0][:id]
-    custody_transfer_id = db[:enumeration].filter(:name=>'event_event_type').join(:enumeration_value, :enumeration_id => Sequel.qualify(:enumeration, :id)).where(:value => 'custody_transfer').all[0][:id]
-    field_archivist_id = db[:enumeration].filter(:name => 'linked_agent_event_roles').join(:enumeration_value, :enumeration_id => Sequel.qualify(:enumeration, :id)).where(:value => 'field_archivist').all[0][:id]
+    field_archivist_id = db[:enumeration].filter(:name => 'linked_agent_event_roles')
+                          .join(:enumeration_value, :enumeration_id => Sequel.qualify(:enumeration, :id))
+                          .where(:value => 'field_archivist')
+                          .select(
+                            Sequel.qualify(:enumeration_value, :id)
+                          ).first[:id]
+
+    enum_processing_status_id = db[:enumeration][:name => 'collection_management_processing_status'][:id]
+    enum_processing_priority_id = db[:enumeration][:name => 'collection_management_processing_priority'][:id]
+
+
+    date_condition = BHLAspaceReportsHelper.format_date_condition(db.literal(@from), db.literal(@to), 'accession.accession_date')    
+    processing_status_condition = processing_status ? BHLAspaceReportsHelper.format_enum_condition('enumvals_processing_status', db.literal(processing_status)) : '1=1'
+    processing_priority_condition = processing_priority ? BHLAspaceReportsHelper.format_enum_condition('enumvals_processing_priority', db.literal(processing_priority)) : '1=1'    
+    classification_condition = classification ? BHLAspaceReportsHelper.format_classification_condition(db.literal(@classification)) : '1=1'                                
+    donor_condition = donor_uri ? "source_links_agents_rlshp.#{donor_type}_id=#{db.literal(@donor_id)}" : '1=1'    
+    field_archivist_condition = field_archivist ? "name_person.sort_name=#{db.literal(@field_archivist)}" : '1=1'
+
     
-    dataset = db[:accession].where(:accession_date => (@from..@to)).
-    left_outer_join(:linked_agents_rlshp, [[:accession_id, Sequel.qualify(:accession, :id)], [:role_id, source_enum_id]], :table_alias => :source_linked_agents_rlshp).
-    left_outer_join(:collection_management, :accession_id => Sequel.qualify(:accession, :id)).
-    left_outer_join(:event_link_rlshp, :accession_id => Sequel.qualify(:accession, :id)).
-    left_outer_join(:event, [[Sequel.qualify(:event, :id), Sequel.qualify(:event_link_rlshp, :event_id)], [:event_type_id, custody_transfer_id]]).
-    left_outer_join(:linked_agents_rlshp, [[:event_id, Sequel.qualify(:event, :id)], [:role_id, field_archivist_id]], :table_alias => :field_archivist_linked_agents_rlshp).
-    left_outer_join(:name_person, :agent_person_id => Sequel.qualify(:field_archivist_linked_agents_rlshp, :agent_person_id)).
-    join(:enumeration,
-        {
-          :name => "collection_management_processing_status"
-        },
-        {
-          :table_alias => :enum_processing_status
-        }).
-    join(:enumeration,
-        {
-         :name => 'collection_management_processing_priority'
-        },
-        {
-         :table_alias => :enum_processing_priority
-        }).
-    left_outer_join(:enumeration_value,
-        {
-          Sequel.qualify(:enumvals_processing_status, :enumeration_id) => Sequel.qualify(:enum_processing_status, :id),
-          Sequel.qualify(:collection_management, :processing_status_id) => Sequel.qualify(:enumvals_processing_status, :id),
-        },
-        {
-          :table_alias => :enumvals_processing_status
-        }).
-    left_outer_join(:enumeration_value,
-        {
-          Sequel.qualify(:enumvals_processing_priority, :enumeration_id) =>  Sequel.qualify(:enum_processing_priority, :id),
-          Sequel.qualify(:collection_management, :processing_priority_id) => Sequel.qualify(:enumvals_processing_priority, :id),
-        },
-        {
-         :table_alias => :enumvals_processing_priority
-        }).
-    left_outer_join(:user_defined, :accession_id => Sequel.qualify(:accession, :id)).
-    select(
-      Sequel.qualify(:accession, :id).as(:accession_id),
-      Sequel.qualify(:accession, :accession_date).as(:accession_date),
-      Sequel.qualify(:accession, :identifier),
-      Sequel.qualify(:accession, :content_description),
-      Sequel.as(Sequel.lit('GROUP_CONCAT(user_defined.string_1 SEPARATOR "; ")'), :staff_received),
-      Sequel.as(Sequel.lit('GetAccessionFieldArchivists(accession.id)'), :field_archivists),
-      Sequel.as(Sequel.lit('GetAccessionLocationUserDefined(accession.id)'), :location),
-      Sequel.as(Sequel.lit('GetAccessionProcessingStatus(accession.id)'), :processing_status),
-      Sequel.as(Sequel.lit('GetAccessionProcessingPriority(accession.id)'), :processing_priority),
-      Sequel.as(Sequel.lit('GetAccessionClassificationsUserDefined(accession.id)'), :classifications),
-      Sequel.as(Sequel.lit('GetAccessionExtentNumberType(accession.id)'), :extent_number_type),
-      Sequel.as(Sequel.lit('GetAccessionSourceName(accession.id)'), :donor_name),
-      Sequel.as(Sequel.lit('GetAccessionDonorNumbers(accession.id)'), :donor_number),
-      ).
-    group(Sequel.qualify(:accession, :id)).
-    order(Sequel.asc(:accession_date))
+    "select 
+      accession.id as accession_id,
+      accession.accession_date,
+      accession.identifier,
+      accession.content_description,
+      GROUP_CONCAT(user_defined.string_1 SEPARATOR '; ') as staff_received,
+      GetAccessionFieldArchivists(accession.id) as field_archivists,
+      GetAccessionLocationUserDefined(accession.id) as location,
+      GetAccessionProcessingStatus(accession.id) as processing_status,
+      GetAccessionProcessingPriority(accession.id) as processing_priority,
+      GetAccessionClassificationsUserDefined(accession.id) as classification,
+      GetAccessionExtentNumberType(accession.id) as extent_number_type,
+      GetAccessionSourceName(accession.id) as donor_name,
+      GetAccessionDonorNumbers(accession.id) as donor_number
+    from accession
+      left outer join linked_agents_rlshp as source_linked_agents_rlshp on (source_linked_agents_rlshp.accession_id=accession.id and source_linked_agents_rlshp.role_id=#{source_enum_id})
+      left outer join collection_management on collection_management.accession_id=accession.id
+      left outer join event_link_rlshp on event_link_rlshp.accession_id=accession.id
+      left outer join event on (event.id=event_link_rlshp.event_id and event.event_type_id=#{custody_transfer_id})
+      left outer join linked_agents_rlshp as field_archivist_linked_agents_rlshp on (field_archivist_linked_agents_rlshp.event_id=event.id and field_archivist_linked_agents_rlshp.role_id=#{field_archivist_id})
+      left outer join name_person on name_person.agent_person_id=field_archivist_linked_agents_rlshp.agent_person_id
+      left outer join enumeration_value as enumvals_processing_status on (enumvals_processing_status.enumeration_id=#{enum_processing_status_id} and collection_management.processing_status_id=enumvals_processing_status.id)
+      left outer join enumeration_value as enumvals_processing_priority on (enumvals_processing_priority.enumeration_id=#{enum_processing_priority_id} and collection_management.processing_priority_id=enumvals_processing_priority.id)
+      left outer join user_defined on user_defined.accession_id=accession.id
+    where
+      accession.repo_id = #{db.literal(@repo_id)} 
+      and #{date_condition} 
+      and #{processing_status_condition} 
+      and #{processing_priority_condition} 
+      and #{classification_condition} 
+      and #{donor_condition} 
+      and #{field_archivist_condition}
+    group by accession.id
+    order by accession_date"
+  end
 
-    dataset = dataset.where(Sequel.qualify(:accession, :repo_id) => @repo_id)
-
-    if processing_status
-      if processing_status == "No Defined Value"
-        dataset = dataset.where(Sequel.qualify(:enumvals_processing_status, :value) => nil)
-      elsif processing_status == "Any Defined Value"
-        dataset = dataset.exclude(Sequel.qualify(:enumvals_processing_status, :value) => nil)
-      else
-        dataset = dataset.where(Sequel.qualify(:enumvals_processing_status, :value) => @processing_status)
-      end
-    end
-
-    if processing_priority
-      if processing_priority == "No Defined Value"
-        dataset = dataset.where(Sequel.qualify(:enumvals_processing_priority, :value) => nil)
-      elsif processing_priority == "Any Defined Value"
-        dataset = dataset.exclude(Sequel.qualify(:enumvals_processing_priority, :value) => nil)
-      else
-        dataset = dataset.where(Sequel.qualify(:enumvals_processing_priority, :value) => @processing_priority)
-      end
-    end
-
-    if classification
-      #where{(price - 100 > 200) | (price / 100 >= 200)}
-      dataset = dataset.where(Sequel.lit('GetEnumValue(user_defined.enum_1_id)') => @classification).or(Sequel.lit('GetEnumValue(user_defined.enum_2_id)') => @classification).or(Sequel.lit('GetEnumValue(user_defined.enum_3_id)') => @classification)
-    end
-
-    if donor_uri
-      dataset = dataset.where(Sequel.qualify(:source_linked_agents_rlshp, :"#{@donor_type}_id") => @donor_id)
-    end
-
-    if field_archivist
-      dataset = dataset.where(Sequel.qualify(:name_person, :sort_name) => @field_archivist)
-    end
-
-    dataset
+  def after_tasks
+    info.delete(:repository)
   end
 
 end

@@ -5,92 +5,57 @@ class BhlUnreportedAccessionsReport < AbstractReport
                                 ["to", Date, "The end of report range"]]
                   })
 
-  # Workaround to avoid new ArchivesSpace csv_response
-  def to_csv
-    CSV.generate do |csv|
-      csv << headers
-      each do |row|
-        csv << headers.map{|header| row[header]}
-      end
-    end
-  end
 
   def initialize(params, job, db)
     super
-    if ASUtils.present?(params["from"])
-      from = params["from"]
-    else
-      from = Time.new(1800, 01, 01).to_s
+    from, to = BHLAspaceReportsHelper.parse_date_params(params)
+    @from = BHLAspaceReportsHelper.format_date(from)
+    @to = BHLAspaceReportsHelper.format_date(to)
+  end
+
+  def fix_row(row)
+    BHLAspaceReportsHelper.fix_identifier_format_bhl(row, :Accession_Identifier)
+    row.delete(:accession_id)
+  end
+
+  def query_string
+    source_enum_id = db[:enumeration].filter(:name=>'linked_agent_role')
+                        .join(:enumeration_value, :enumeration_id => Sequel.qualify(:enumeration, :id))
+                        .where(:value => 'source')
+                        .select(
+                          Sequel.qualify(:enumeration_value, :id)
+                        ).first[:id]
+    date_condition = BHLAspaceReportsHelper.format_date_condition(db.literal(@from), db.literal(@to), 'accession.accession_date')
+
+    classification_conditions = []
+    classification_fields = ["user_defined.enum_1_id", "user_defined.enum_2_id", "user_defined.enum_3_id"]
+    classification_fields.each do |classification_field|
+      classification_conditions << "(#{classification_field} IS NULL OR NOT GetEnumValue(#{classification_field}) IN ('MHC', 'FAC'))"
     end
-
-    if ASUtils.present?(params["to"])
-      to = params["to"]
-    else
-      to = Time.now.to_s
-    end
-
-    @from = DateTime.parse(from).to_time.strftime("%Y-%m-%d %H:%M:%S")
-    @to = DateTime.parse(to).to_time.strftime("%Y-%m-%d %H:%M:%S")
-  end
-
-  def title
-    "Bentley Historical Library Non-DART Accessions Report"
-  end
-
-  def headers
-    ['Accession ID', 'accession_date', 'classifications', 'created_by', 'donor_name', 'DART_LID', 'Donor Contact ID']
-  end
-
-  def processor
-    {
-      'Accession ID' => proc {|record| ASUtils.json_parse(record[:identifier] || "[]").compact.join("-")},
-      'Donor Contact ID' => proc {|record| record[:beal_contact_id]}
-    }
-  end
-
-  def scope_by_repo_id(dataset)
-    # repo scope is applied in the query below
-    dataset
-  end
-
-  def query
-    source_enum_id = db[:enumeration].filter(:name=>'linked_agent_role').join(:enumeration_value, :enumeration_id => :id).where(:value => 'source').all[0][:id]
+    classification_condition = "(#{classification_conditions.join(' AND ')})"
     
-    accession_ids = db[:accession].where(:accession_date => (@from..@to)).map(:id)
-
-    dataset = db[:accession].
-    filter(Sequel.qualify(:accession, :id) => accession_ids).
-    left_outer_join(:user_defined, :accession_id => Sequel.qualify(:accession, :id)).
-    left_outer_join(:linked_agents_rlshp, [[:accession_id, Sequel.qualify(:accession, :id)], [:role_id, source_enum_id]]).
-    select(
-      Sequel.qualify(:accession, :id).as(:accession_id),
-      Sequel.qualify(:accession, :identifier),
-      Sequel.qualify(:accession, :accession_date),
-      Sequel.qualify(:accession, :created_by),
-      Sequel.as(Sequel.lit('GetAccessionSourceName(accession.id)'), :donor_name),
-      Sequel.as(Sequel.lit('GetAgentLastName(linked_agents_rlshp.agent_person_id, linked_agents_rlshp.agent_family_id, linked_agents_rlshp.agent_corporate_entity_id)'), :Lastname),
-      Sequel.as(Sequel.lit('GetAgentRestOfName(linked_agents_rlshp.agent_person_id, linked_agents_rlshp.agent_family_id, linked_agents_rlshp.agent_corporate_entity_id)'), :Firstname),
-      Sequel.as(Sequel.lit('GetAgentSuffix(linked_agents_rlshp.agent_person_id, linked_agents_rlshp.agent_family_id, linked_agents_rlshp.agent_corporate_entity_id)'), :Suffix),
-      Sequel.as(Sequel.lit('GetAgentTitle(linked_agents_rlshp.agent_person_id, linked_agents_rlshp.agent_family_id, linked_agents_rlshp.agent_corporate_entity_id)'), :Title),
-      Sequel.as(Sequel.lit('GetAgentOrganizationOrUnit(linked_agents_rlshp.agent_person_id, linked_agents_rlshp.agent_family_id, linked_agents_rlshp.agent_corporate_entity_id)'), :OrganizationOrUnit),
-      Sequel.as(Sequel.lit('GetAgentAddress1(linked_agents_rlshp.agent_person_id, linked_agents_rlshp.agent_family_id, linked_agents_rlshp.agent_corporate_entity_id)'), :Street1),
-      Sequel.as(Sequel.lit('GetAgentAddress2(linked_agents_rlshp.agent_person_id, linked_agents_rlshp.agent_family_id, linked_agents_rlshp.agent_corporate_entity_id)'), :Street2),
-      Sequel.as(Sequel.lit('GetAgentCity(linked_agents_rlshp.agent_person_id, linked_agents_rlshp.agent_family_id, linked_agents_rlshp.agent_corporate_entity_id)'), :City),
-      Sequel.as(Sequel.lit('GetAgentState(linked_agents_rlshp.agent_person_id, linked_agents_rlshp.agent_family_id, linked_agents_rlshp.agent_corporate_entity_id)'), :St),
-      Sequel.as(Sequel.lit('GetAgentZipCode(linked_agents_rlshp.agent_person_id, linked_agents_rlshp.agent_family_id, linked_agents_rlshp.agent_corporate_entity_id)'), :Zip),
-      Sequel.as(Sequel.lit('GetAgentBEALContactID(linked_agents_rlshp.agent_person_id, linked_agents_rlshp.agent_family_id, linked_agents_rlshp.agent_corporate_entity_id)'), :beal_contact_id),
-      Sequel.as(Sequel.lit('GetAccessionClassificationsUserDefined(accession.id)'), :classifications),
-      Sequel.as(Sequel.lit('GetAgentDARTLID(linked_agents_rlshp.agent_person_id, linked_agents_rlshp.agent_family_id, linked_agents_rlshp.agent_corporate_entity_id)'), :DART_LID)
-      ).
-    where(Sequel.qualify(:accession, :repo_id) => @repo_id).
-    group(Sequel.qualify(:accession, :id), Sequel.qualify(:linked_agents_rlshp, :id)).
-    order(Sequel.asc(:accession_date))
-
-    dataset = dataset.where{Sequel.lit('(user_defined.enum_1_id IS NULL OR NOT GetEnumValue(user_defined.enum_1_id) IN ("MHC", "FAC")) AND (user_defined.enum_2_id IS NULL OR NOT GetEnumValue(user_defined.enum_2_id) IN ("MHC", "FAC")) AND (user_defined.enum_3_id IS NULL OR NOT GetEnumValue(user_defined.enum_3_id) IN ("MHC", "FAC"))')}
-    dataset = dataset.where(:accession_date => (@from..@to))
-    
-    dataset
+    "select
+      accession.id as accession_id,
+      accession.identifier as Accession_Identifier,
+      accession.accession_date,
+      accession.created_by,
+      GetAccessionClassificationsUserDefined(accession.id) as classifications,
+      GetAccessionSourceName(accession.id) as donor_name,
+      GetAgentDARTLID(linked_agents_rlshp.agent_person_id, linked_agents_rlshp.agent_family_id, linked_agents_rlshp.agent_corporate_entity_id) as DART_LID,
+      GetAgentBEALContactID(linked_agents_rlshp.agent_person_id, linked_agents_rlshp.agent_family_id, linked_agents_rlshp.agent_corporate_entity_id) as 'Donor Contact ID'
+    from accession
+      left outer join user_defined on user_defined.accession_id=accession.id
+      left outer join linked_agents_rlshp on (linked_agents_rlshp.accession_id=accession.id and linked_agents_rlshp.role_id=#{source_enum_id})
+    where
+      accession.repo_id=#{db.literal(@repo_id)}
+      and #{date_condition}
+      and #{classification_condition}
+    group by accession.id, linked_agents_rlshp.id
+    order by accession.accession_date"
   end
 
+  def after_tasks
+    info.delete(:repository)
+  end
 
 end

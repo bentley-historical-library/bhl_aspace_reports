@@ -1,4 +1,3 @@
-require 'csv'
 class BhlFormatsReport < AbstractReport
   
   register_report({
@@ -20,97 +19,98 @@ class BhlFormatsReport < AbstractReport
       permutations << format_variation.gsub("-", "")
       # Replace dashes with spaces
       permutations << format_variation.gsub("-", " ")
+      # Replace disc with disk
+      permutations << format_variation.gsub("disc", "disk")
+      # Replace disk with disc
+      permutations << format_variation.gsub("disk", "disc")
     end
 
     permutations.uniq
   end
 
-  # Workaround to avoid new ArchivesSpace csv_response
-  def to_csv
-    CSV.generate do |csv|
-      csv << headers
-      each do |row|
-        csv << headers.map{|header| row[header]}
-      end
-    end
-  end
-
   def initialize(params, job, db)
     super
-
-    submitted_formats = ASUtils.json_parse(@job.job_blob)["additional_params"].split(",")
+    submitted_formats = ASUtils.json_parse(@job.job_blob)["additional_params"]
+    info[:queried_formats] = submitted_formats
+    submitted_formats_array = submitted_formats.split(",")
     @formats_array = []
-    submitted_formats.each do |format|
-      @formats_array << format.downcase.strip
-      @formats_array.concat permutate_format(format.downcase.strip)
+    submitted_formats_array.each do |submitted_format|
+      @formats_array << submitted_format.downcase.strip
+      @formats_array.concat permutate_format(submitted_format.downcase.strip)
     end
-
     @formats_array.uniq!
-    @formats_regex = Regexp.union(@formats_array)
+    regex_formats = []
+    @formats_array.each do |permutated_format|
+      regex_formats << "[[:<:]]#{permutated_format}[[:>:]]"
+    end
+    @regex_string = regex_formats.join("|")
+    @literals_array = []
+    @formats_array.each do |unliteralized_format|
+      @literals_array << db.literal(unliteralized_format)
+    end    
   end
 
-
-  def title
-    "Bentley Historical Library Formats Report"
+  def fix_row(row)
+    BHLAspaceReportsHelper.fix_identifier_format_bhl(row, :call_number)
+    BHLAspaceReportsHelper.parse_note_content(row, :physical_details_note)
+    BHLAspaceReportsHelper.parse_note_content(row, :general_note)
   end
 
-  def headers
-    ['collection_title', 'display_string', 'component_unique_id', 'extents', 'containers', 'digital_object', 'physical_details_note', 'breadcrumb', 'call_number', 'resource_id', 'archival_object_id']
+  def query_extents()
+    extent_type_condition = "GetEnumValue(extent.extent_type_id) in (#{@literals_array.join(', ')})"
+    physical_details_condition = "extent.physical_details regexp #{db.literal(@regex_string)}"
+    extent_match_query = "select
+                            archival_object_id
+                          from extent
+                            where archival_object_id is not null
+                            and (#{extent_type_condition} or #{physical_details_condition})"
+    extent_matches = db.fetch(extent_match_query).map(:archival_object_id).uniq
+    extent_matches
   end
 
-  def processor
-    {
-      'call_number' => proc {|record| ASUtils.json_parse(record[:resource_identifier] || "[]").compact.join("-")},
-      'physical_details_note' => proc {|record| if record[:physical_details_note]
-                                        ASUtils.json_parse(record[:physical_details_note])["content"][0]
-                                      else
-                                        ""
-                                      end
-                                  }  
-    }
+  def query_notes(archival_object_ids, note_type)
+    notes_condition = "note.notes like '%#{note_type}%' and note.notes regexp #{db.literal(@regex_string)}"
+    archival_object_id_condition = archival_object_ids.empty? ? '1=1' : "archival_object_id not in (#{archival_object_ids.join(', ')})"
+    note_match_query = "select
+                          archival_object_id
+                        from note
+                          where archival_object_id is not null
+                          and #{archival_object_id_condition}
+                          and #{notes_condition}"
+    note_matches = db.fetch(note_match_query).map(:archival_object_id).uniq
+    note_matches
   end
 
-  def scope_by_repo_id(dataset)
-    # repo scope is applied in the query below
-    dataset
-  end
-
-  def query
+  def query_string
     archival_object_ids = []
+    archival_object_ids.concat(query_extents())
+    archival_object_ids.concat(query_notes(archival_object_ids, 'physfacet'))
+    archival_object_ids.concat(query_notes(archival_object_ids, 'odd'))
+    archival_object_id_condition = archival_object_ids.empty? ? '1=2' : "archival_object.id in (#{archival_object_ids.join(', ')})"
 
-    extent_matches = db[:extent].
-    exclude(:archival_object_id => nil).
-    where(Sequel.lit('GetEnumValue(extent.extent_type_id) IN :formats', formats: @formats_array) | Sequel.ilike(:physical_details, @formats_regex)).
-    map(:archival_object_id).uniq
-    archival_object_ids.concat(extent_matches)
-
-    note_matches = db[:note].
-    exclude(:archival_object_id => nil).
-    exclude(:archival_object_id => archival_object_ids).
-    where(Sequel.like(:notes, "%physfacet%")).
-    where(Sequel.ilike(:notes, @formats_regex)).
-    map(:archival_object_id).uniq
-    archival_object_ids.concat(note_matches)
-
-    dataset = db[:archival_object].
-    filter(Sequel.qualify(:archival_object, :id) => archival_object_ids).
-    filter(Sequel.qualify(:archival_object, :repo_id) => @repo_id).
-    left_outer_join(:resource, Sequel.qualify(:resource, :id) => Sequel.qualify(:archival_object, :root_record_id)).
-    select(
-      Sequel.qualify(:archival_object, :id).as(:archival_object_id),
-      Sequel.qualify(:archival_object, :component_id).as(:component_unique_id),
-      Sequel.qualify(:archival_object, :root_record_id).as(:resource_id),
-      Sequel.qualify(:archival_object, :display_string).as(:display_string),
-      Sequel.qualify(:resource, :title).as(:collection_title),
-      Sequel.qualify(:resource, :identifier).as(:resource_identifier),
-      Sequel.as(Sequel.lit('GetArchivalObjectDigitalObject(archival_object.id)'), :digital_object),
-      Sequel.as(Sequel.lit('GetArchivalObjectExtent(archival_object.id)'), :extents),
-      Sequel.as(Sequel.lit('GetArchivalObjectNoteByType(archival_object.id, "physfacet")'), :physical_details_note),
-      Sequel.as(Sequel.lit('GetArchivalObjectContainers(archival_object.id)'), :containers),
-      Sequel.as(Sequel.lit('GetArchivalObjectBreadcrumb(archival_object.id)'), :breadcrumb)
-      ).
-    group(Sequel.qualify(:archival_object, :id))
-
-    dataset
+    "select
+      resource.title as collection_title,
+      resource.identifier as call_number,
+      GetArchivalObjectBreadcrumb(archival_object.id) as breadcrumb,
+      archival_object.display_string as display_string,
+      archival_object.component_id as component_unique_id,
+      GetArchivalObjectExtent(archival_object.id) as extents,
+      GetArchivalObjectNoteByType(archival_object.id, 'physfacet') as physical_details_note,
+      GetArchivalObjectNoteByType(archival_object.id, 'odd') as general_note,
+      GetArchivalObjectContainers(archival_object.id) as containers,
+      GetArchivalObjectDigitalObject(archival_object.id) as digital_object,
+      archival_object.root_record_id as resource_id,
+      archival_object.id as archival_object_id
+    from archival_object
+      left outer join resource on resource.id=archival_object.root_record_id
+    where
+      archival_object.repo_id=#{db.literal(@repo_id)}
+      and #{archival_object_id_condition}
+    group by archival_object.id"
   end
+
+  def after_tasks
+    info.delete(:repository)
+  end
+  
 end

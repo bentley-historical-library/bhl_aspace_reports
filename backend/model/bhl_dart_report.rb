@@ -5,93 +5,76 @@ class BhlDartReport < AbstractReport
                                 ["to", Date, "The end of report range"]]
                   })
 
-  # Workaround to avoid new ArchivesSpace csv_response
-  def to_csv
-    CSV.generate do |csv|
-      csv << headers
-      each do |row|
-        csv << headers.map{|header| row[header]}
-      end
-    end
-  end
 
   def initialize(params, job, db)
     super
-    if ASUtils.present?(params["from"])
-      from = params["from"]
-    else
-      from = Time.new(1800, 01, 01).to_s
-    end
-
-    if ASUtils.present?(params["to"])
-      to = params["to"]
-    else
-      to = Time.now.to_s
-    end
-
-    @from = DateTime.parse(from).to_time.strftime("%Y-%m-%d %H:%M:%S")
-    @to = DateTime.parse(to).to_time.strftime("%Y-%m-%d %H:%M:%S")
+    from, to = BHLAspaceReportsHelper.parse_date_params(params)
+    @from = BHLAspaceReportsHelper.format_date(from)
+    @to = BHLAspaceReportsHelper.format_date(to)
   end
 
-  def title
-    "Bentley Historical Library DART Report"
+  def fix_row(row)
+    BHLAspaceReportsHelper.fix_identifier_format_bhl(row, :bhl_accession_id)
+    row["Bentley Accession ID"] = row[:bhl_accession_id]
+    row.delete(:id)
+    row.delete(:bhl_accession_id)
   end
 
-  def headers
-    ['DART_LID', 'Lastname', 'Firstname', 'Middle', 'Suffix', 'Title', 'OrganizationOrUnit', 'Street1', 'Street2', 'City', 'St', 'Zip', 'donation amt', 'credit date', 'item description', 'designation', 'comment', 'concatenated', 'note', 'note type', 'GIK subtype', '# of units', 'item name', 'REV type', 'do not receipt', 'Constituent alt lookup ID', 'Bentley Accession ID']
-  end
-
-  def processor
-    {
-      'donation amt' => proc {|record| '1'},
-      'credit date' => proc {|record| record[:accession_date]},
-      'designation' => proc {|record| '897100'},
-      'GIK subtype' => proc {|record| 'art & books'},
-      '# of units' => proc {|record| '1'},
-      'Bentley Accession ID' => proc {|record| ASUtils.json_parse(record[:identifier] || "[]").compact.join("-")},
-      'Constituent alt lookup ID' => proc {|record| record[:beal_contact_id]}
-    }
-  end
-
-  def scope_by_repo_id(dataset)
-    # repo scope is applied in the query below
-    dataset
-  end
-
-  def query
-    source_enum_id = db[:enumeration].filter(:name=>'linked_agent_role').join(:enumeration_value, :enumeration_id => :id).where(:value => 'source').all[0][:id]
+  def query_string
+    source_enum_id = db[:enumeration].filter(:name=>'linked_agent_role')
+                        .join(:enumeration_value, :enumeration_id => Sequel.qualify(:enumeration, :id))
+                        .where(:value => 'source')
+                        .select(
+                          Sequel.qualify(:enumeration_value, :id)
+                        ).first[:id]
     
-    accession_ids = db[:accession].where(:accession_date => (@from..@to)).map(:id)
+    date_condition = BHLAspaceReportsHelper.format_date_condition(db.literal(@from), db.literal(@to), 'accession.accession_date')
+    classification_condition = "(GetEnumValue(user_defined.enum_1_id) in ('MHC', 'FAC')
+                                or GetEnumValue(user_defined.enum_2_id) in ('MHC', 'FAC')
+                                or GetEnumValue(user_defined.enum_3_id) in ('MHC', 'FAC'))" 
 
-    dataset = db[:accession].
-    filter(Sequel.qualify(:accession, :id) => accession_ids).
-    left_outer_join(:user_defined, :accession_id => Sequel.qualify(:accession, :id)).
-    left_outer_join(:linked_agents_rlshp, [[:accession_id, Sequel.qualify(:accession, :id)], [:role_id, source_enum_id]]).
-    select(
-      Sequel.qualify(:accession, :id).as(:accession_id),
-      Sequel.qualify(:accession, :identifier),
-      Sequel.qualify(:accession, :accession_date),
-      Sequel.as(Sequel.lit('GetAgentLastName(linked_agents_rlshp.agent_person_id, linked_agents_rlshp.agent_family_id, linked_agents_rlshp.agent_corporate_entity_id)'), :Lastname),
-      Sequel.as(Sequel.lit('GetAgentRestOfName(linked_agents_rlshp.agent_person_id, linked_agents_rlshp.agent_family_id, linked_agents_rlshp.agent_corporate_entity_id)'), :Firstname),
-      Sequel.as(Sequel.lit('GetAgentSuffix(linked_agents_rlshp.agent_person_id, linked_agents_rlshp.agent_family_id, linked_agents_rlshp.agent_corporate_entity_id)'), :Suffix),
-      Sequel.as(Sequel.lit('GetAgentTitle(linked_agents_rlshp.agent_person_id, linked_agents_rlshp.agent_family_id, linked_agents_rlshp.agent_corporate_entity_id)'), :Title),
-      Sequel.as(Sequel.lit('GetAgentOrganizationOrUnit(linked_agents_rlshp.agent_person_id, linked_agents_rlshp.agent_family_id, linked_agents_rlshp.agent_corporate_entity_id)'), :OrganizationOrUnit),
-      Sequel.as(Sequel.lit('GetAgentAddress1(linked_agents_rlshp.agent_person_id, linked_agents_rlshp.agent_family_id, linked_agents_rlshp.agent_corporate_entity_id)'), :Street1),
-      Sequel.as(Sequel.lit('GetAgentAddress2(linked_agents_rlshp.agent_person_id, linked_agents_rlshp.agent_family_id, linked_agents_rlshp.agent_corporate_entity_id)'), :Street2),
-      Sequel.as(Sequel.lit('GetAgentCity(linked_agents_rlshp.agent_person_id, linked_agents_rlshp.agent_family_id, linked_agents_rlshp.agent_corporate_entity_id)'), :City),
-      Sequel.as(Sequel.lit('GetAgentState(linked_agents_rlshp.agent_person_id, linked_agents_rlshp.agent_family_id, linked_agents_rlshp.agent_corporate_entity_id)'), :St),
-      Sequel.as(Sequel.lit('GetAgentZipCode(linked_agents_rlshp.agent_person_id, linked_agents_rlshp.agent_family_id, linked_agents_rlshp.agent_corporate_entity_id)'), :Zip),
-      Sequel.as(Sequel.lit('GetAgentBEALContactID(linked_agents_rlshp.agent_person_id, linked_agents_rlshp.agent_family_id, linked_agents_rlshp.agent_corporate_entity_id)'), :beal_contact_id),
-      Sequel.as(Sequel.lit('GetAgentDARTLID(linked_agents_rlshp.agent_person_id, linked_agents_rlshp.agent_family_id, linked_agents_rlshp.agent_corporate_entity_id)'), :DART_LID)
-      ).
-    where(Sequel.qualify(:accession, :repo_id) => @repo_id).
-    group(Sequel.qualify(:accession, :id), Sequel.qualify(:linked_agents_rlshp, :id)).
-    order(Sequel.asc(:accession_date))
-
-    dataset = dataset.where(Sequel.lit('GetEnumValue(user_defined.enum_1_id) IN ("MHC", "FAC")')).or(Sequel.lit('GetEnumValue(user_defined.enum_2_id) IN ("MHC", "FAC")')).or(Sequel.lit('GetEnumValue(user_defined.enum_3_id) IN ("MHC", "FAC")'))
-    dataset = dataset.where(:accession_date => (@from..@to))
-    dataset
+    "select
+      accession.id,
+      GetAgentDARTLID(linked_agents_rlshp.agent_person_id, linked_agents_rlshp.agent_family_id, linked_agents_rlshp.agent_corporate_entity_id) as DART_LID,
+      GetAgentLastName(linked_agents_rlshp.agent_person_id, linked_agents_rlshp.agent_family_id, linked_agents_rlshp.agent_corporate_entity_id) as Lastname,
+      '' as Middle,
+      GetAgentRestOfName(linked_agents_rlshp.agent_person_id, linked_agents_rlshp.agent_family_id, linked_agents_rlshp.agent_corporate_entity_id) as Firstname,
+      GetAgentSuffix(linked_agents_rlshp.agent_person_id, linked_agents_rlshp.agent_family_id, linked_agents_rlshp.agent_corporate_entity_id) as Suffix,
+      GetAgentTitle(linked_agents_rlshp.agent_person_id, linked_agents_rlshp.agent_family_id, linked_agents_rlshp.agent_corporate_entity_id) as Title,
+      GetAgentOrganizationOrUnit(linked_agents_rlshp.agent_person_id, linked_agents_rlshp.agent_family_id, linked_agents_rlshp.agent_corporate_entity_id) as OrganizationOrUnit,
+      GetAgentAddress1(linked_agents_rlshp.agent_person_id, linked_agents_rlshp.agent_family_id, linked_agents_rlshp.agent_corporate_entity_id) as Street1,
+      GetAgentAddress2(linked_agents_rlshp.agent_person_id, linked_agents_rlshp.agent_family_id, linked_agents_rlshp.agent_corporate_entity_id) as Street2,
+      GetAgentCity(linked_agents_rlshp.agent_person_id, linked_agents_rlshp.agent_family_id, linked_agents_rlshp.agent_corporate_entity_id) as City,
+      GetAgentState(linked_agents_rlshp.agent_person_id, linked_agents_rlshp.agent_family_id, linked_agents_rlshp.agent_corporate_entity_id) as St,
+      GetAgentZipCode(linked_agents_rlshp.agent_person_id, linked_agents_rlshp.agent_family_id, linked_agents_rlshp.agent_corporate_entity_id) as Zip,
+      '1' as 'donation amt',
+      accession.accession_date as 'credit date',
+      '' as 'item description',
+      '897100' as designation,
+      '' as comment,
+      '' as concatenated,
+      '' as note,
+      '' as 'note type',
+      'art & books' as 'GIK subtype',
+      '1' as '# of units',
+      '' as 'item name',
+      '' as 'REV type',
+      '' as 'do not receipt',
+      GetAgentBEALContactID(linked_agents_rlshp.agent_person_id, linked_agents_rlshp.agent_family_id, linked_agents_rlshp.agent_corporate_entity_id) as 'Constituent alt lookup ID',
+      accession.identifier as bhl_accession_id
+    from accession
+      left outer join user_defined on user_defined.accession_id=accession.id
+      left outer join linked_agents_rlshp on (linked_agents_rlshp.accession_id=accession.id and linked_agents_rlshp.role_id=#{source_enum_id})
+    where
+      accession.repo_id=#{db.literal(@repo_id)}
+      and #{date_condition}
+      and #{classification_condition}
+    group by accession.id, linked_agents_rlshp.id
+    order by accession.accession_date"
   end
 
+  def after_tasks
+    info.delete(:repository)
+  end
 
 end
