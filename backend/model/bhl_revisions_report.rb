@@ -2,83 +2,49 @@ class BhlRevisionsReport < AbstractReport
   
   register_report({
                     :params => [["from", Date, "The start of report range"],
-                                ["to", Date, "The start of report range"]]
+                                ["to", Date, "The end of report range"]]
                   })
 
-  # Workaround to avoid new ArchivesSpace csv_response
-  def to_csv
-    CSV.generate do |csv|
-      csv << headers
-      each do |row|
-        csv << headers.map{|header| row[header]}
-      end
-    end
-  end
 
   def initialize(params, job, db)
     super
-
-    if ASUtils.present?(params["from"])
-      from = params["from"]
-    else
-      from = Time.new(1800, 01, 01).to_s
-    end
-
-    if ASUtils.present?(params["to"])
-      to = params["to"]
-    else
-      to = Time.now.to_s
-    end
-
-    @from = DateTime.parse(from).to_time.strftime("%Y-%m-%d %H:%M:%S")
-    @to = DateTime.parse(to).to_time.strftime("%Y-%m-%d %H:%M:%S")
+    @from, @to = BHLAspaceReportsHelper.parse_date_params(params)
   end
 
-  def title
-    "Bentley Historical Library Revisions Report"
+  def fix_row(row)
+    row[:new_or_updated] = (row[:earliest_revision] >= @from) ? "new" : "updated"
   end
 
-  def headers
-    ['resource_title', 'earliest_revision', 'latest_revision', 'new_or_updated']
+  def query_revision_statements
+    date_condition = BHLAspaceReportsHelper.format_date_condition(db.literal(@from), db.literal(@to), 'revision_statement.date')
+    query_string = "select
+                      revision_statement.resource_id
+                    from revision_statement
+                    where #{date_condition}
+                    group by revision_statement.resource_id"
+    resource_ids = db.fetch(query_string).map(:resource_id)
+    resource_ids.uniq
   end
 
-  def processor
-    {'new_or_updated' => proc {|record| if record[:earliest_revision] >= @from
-                                          "new"
-                                        else
-                                          "updated"
-                                        end
-                              }
-    }
+  def query_string
+    resource_ids = query_revision_statements()
+    resource_ids_condition = "resource.id in (#{resource_ids.join(', ')})"
+
+    "select
+      resource.title as resource_title,
+      MIN(revision_statement.date) as earliest_revision,
+      MAX(revision_statement.date) as latest_revision
+    from resource left outer join revision_statement on revision_statement.resource_id=resource.id
+    where
+      resource.repo_id=#{db.literal(@repo_id)}
+      and resource.publish=1
+      and #{resource_ids_condition}
+    group by resource.id
+    order by resource.title"
   end
 
-  def scope_by_repo_id(dataset)
-    # repo scope is applied in the query below
-    dataset
+  def after_tasks
+    info.delete(:repository)
   end
 
-  def query
-    resource_ids = db[:revision_statement].where(:date=>(@from..@to)).
-    left_outer_join(:resource, Sequel.qualify(:resource, :id) => Sequel.qualify(:revision_statement, :resource_id)).
-    select(
-      Sequel.qualify(:resource, :id)
-      ).
-    where(Sequel.qualify(:resource, :publish) => 1).
-    group(Sequel.qualify(:resource, :id)).map(:id)
-
-    dataset = db[:revision_statement].
-    filter(:resource_id => resource_ids).
-    left_outer_join(:resource, Sequel.qualify(:resource, :id) => Sequel.qualify(:revision_statement, :resource_id)).
-    select(
-      Sequel.qualify(:resource, :title).as(:resource_title),
-      Sequel.lit('GROUP_CONCAT(revision_statement.date)').as(:revision_dates),
-      Sequel.lit('MIN(revision_statement.date)').as(:earliest_revision),
-      Sequel.lit('MAX(revision_statement.date)').as(:latest_revision),
-      Sequel.lit('COUNT(revision_statement.id)').as(:revision_count)
-      ).
-    group(Sequel.qualify(:resource, :id)).
-    order(Sequel.asc(Sequel.qualify(:resource, :title)))
-
-    dataset
-  end
 end
