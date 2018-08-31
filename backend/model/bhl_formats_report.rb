@@ -112,5 +112,5 @@ class BhlFormatsReport < AbstractReport
   def after_tasks
     info.delete(:repository)
   end
-  
+
 end

@@ -47,5 +47,5 @@ class BhlRestrictionsReport < AbstractReport
   def after_tasks
     info.delete(:repository)
   end
-  
+
 end
