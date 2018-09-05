@@ -39,54 +39,115 @@ class BhlFormatsReport < AbstractReport
       @formats_array.concat permutate_format(submitted_format.downcase.strip)
     end
     @formats_array.uniq!
-    regex_formats = []
-    @formats_array.each do |permutated_format|
-      regex_formats << "[[:<:]]#{permutated_format}[[:>:]]"
-    end
-    @regex_string = regex_formats.join("|")
-    @literals_array = []
-    @formats_array.each do |unliteralized_format|
-      @literals_array << db.literal(unliteralized_format)
-    end    
+    @formats_regex = /\b(#{Regexp.union(@formats_array).source})\b/i
   end
 
   def fix_row(row)
     BHLAspaceReportsHelper.fix_identifier_format_bhl(row, :call_number)
-    BHLAspaceReportsHelper.parse_note_content(row, :physical_details_note)
-    BHLAspaceReportsHelper.parse_note_content(row, :general_note)
+    @note_columns.each do |note_column|
+      BHLAspaceReportsHelper.parse_notes(row, note_column.to_sym)
+    end
   end
 
   def query_extents()
-    extent_type_condition = "GetEnumValue(extent.extent_type_id) in (#{@literals_array.join(', ')})"
-    physical_details_condition = "extent.physical_details regexp #{db.literal(@regex_string)}"
-    extent_match_query = "select
-                            archival_object_id
-                          from extent
-                            where archival_object_id is not null
-                            and (#{extent_type_condition} or #{physical_details_condition})"
-    extent_matches = db.fetch(extent_match_query).map(:archival_object_id).uniq
-    extent_matches
+    extent_type_ids = query_extent_types()
+    physical_details = query_extent_physical_details()
+
+    extent_type_condition = extent_type_ids.empty? ? '1=2' : "extent.extent_type_id in (#{extent_type_ids.join(", ")})"
+    physical_details_condition = physical_details.empty? ? '1=2' : "extent.physical_details in (#{physical_details.join(", ")})"
+    extent_condition = "(#{extent_type_condition} or #{physical_details_condition})"
+
+    extent_ids_query = "select archival_object_id from extent where archival_object_id is not null and #{extent_condition}"
+    extent_ids = db.fetch(extent_ids_query).map(:archival_object_id)
+    extent_ids.uniq
   end
 
-  def query_notes(archival_object_ids, note_type)
-    notes_condition = "note.notes like '%#{note_type}%' and note.notes regexp #{db.literal(@regex_string)}"
-    archival_object_id_condition = archival_object_ids.empty? ? '1=1' : "archival_object_id not in (#{archival_object_ids.join(', ')})"
-    note_match_query = "select
-                          archival_object_id
-                        from note
-                          where archival_object_id is not null
-                          and #{archival_object_id_condition}
-                          and #{notes_condition}"
-    note_matches = db.fetch(note_match_query).map(:archival_object_id).uniq
-    note_matches
+  def query_extent_types()
+    extent_type_ids_query = "select distinct(extent_type_id) as id, GetEnumValue(extent_type_id) as value from extent"
+    extent_types = db.fetch(extent_type_ids_query).all
+    matching_extent_type_ids = extent_types.select{|e| e[:value] =~ @formats_regex}.map{|e| e[:id]}
+    matching_extent_type_ids
+  end
+
+  def query_extent_physical_details()
+    physical_details_query = "select distinct(physical_details) from extent where physical_details is not null"
+    physical_details = db.fetch(physical_details_query).map(:physical_details)
+    matching_physical_details = physical_details.select{|v| v =~ @formats_regex}.map{|v| db.literal(v)}
+    matching_physical_details
+  end
+
+  def query_notes()
+    note_types = ["physfacet", "odd", "dimensions", "phystech", "abstract", "materialspec", "physdesc"]
+    note_types_conditions = []
+    note_types.each do |note_type|
+      conditional_type = '%"' + note_type + '"%'
+      note_types_conditions << "note.notes like #{db.literal(conditional_type)}"
+    end
+    note_types_condition = "(#{note_types_conditions.join(" or ")})"
+    note_content_conditions = []
+    @formats_array.each do |format_|
+      note_content_conditions << "LOWER(CONVERT(note.notes using utf8)) like #{db.literal("%" + format_ + "%")}"
+    end
+    note_content_condition = "(#{note_content_conditions.join(" or ")})"
+    notes_condition = "(#{note_types_condition} and #{note_content_condition})"
+    notes_query_string = "select id, archival_object_id, notes from note where archival_object_id is not null and #{notes_condition}"
+    notes_query = db.fetch(notes_query_string).all
+    matching_notes = notes_query.select{|r| r[:notes] =~ @formats_regex}
+    archival_object_to_note_ids = {}
+    matching_notes.each do |matching_note|
+      archival_object_id = matching_note[:archival_object_id]
+      note_id = matching_note[:id]
+      if !archival_object_to_note_ids.include?(archival_object_id)
+        archival_object_to_note_ids[archival_object_id] = []
+      end
+      archival_object_to_note_ids[archival_object_id] << note_id
+    end
+    archival_object_to_note_ids
+  end
+
+  def make_notes_select_list(archival_object_to_note_ids)
+    max_notes = archival_object_to_note_ids.values.max.count
+    selects = []
+    @note_columns = []
+    (1..max_notes).each do |i|
+      note_column = "matched_note_#{i}"
+      @note_columns << note_column
+      selects << "matched_notes_#{i}.notes as #{note_column}"
+    end
+    selects.join(", ")
+  end
+
+  def make_notes_joins(archival_object_to_note_ids)
+    max_notes = archival_object_to_note_ids.values.max.count
+    joins = []
+    (1..max_notes).each do |i|
+      note_ids = archival_object_to_note_ids.values.map{|v| v[i-1]}.compact
+      if note_ids.count > 0
+        note_ids_condition = "note.id in (#{note_ids.join(", ")})"
+        joins << "left outer join (select notes, archival_object_id from note where #{note_ids_condition}) as matched_notes_#{i} on matched_notes_#{i}.archival_object_id=archival_object.id"
+      end
+    end
+    joins.join(" ")
   end
 
   def query_string
     archival_object_ids = []
-    archival_object_ids.concat(query_extents())
-    archival_object_ids.concat(query_notes(archival_object_ids, 'physfacet'))
-    archival_object_ids.concat(query_notes(archival_object_ids, 'odd'))
-    archival_object_id_condition = archival_object_ids.empty? ? '1=2' : "archival_object.id in (#{archival_object_ids.join(', ')})"
+    extent_archival_object_ids = query_extents()
+    archival_object_to_note_ids = query_notes()
+    note_archival_object_ids = archival_object_to_note_ids.keys
+    archival_object_ids.concat(extent_archival_object_ids)
+    archival_object_ids.concat(note_archival_object_ids)
+    archival_object_ids.uniq!
+
+    if archival_object_to_note_ids.count > 0
+      notes_select_list = ", " + make_notes_select_list(archival_object_to_note_ids)
+      notes_joins = make_notes_joins(archival_object_to_note_ids)
+    else
+      notes_select_list = ""
+      notes_joins = ""
+    end
+
+    archival_object_ids_condition = archival_object_ids.empty? ? '1=2' : "archival_object.id in (#{archival_object_ids.join(", ")})"
 
     "select
       resource.title as collection_title,
@@ -95,18 +156,18 @@ class BhlFormatsReport < AbstractReport
       archival_object.display_string as display_string,
       archival_object.component_id as component_unique_id,
       GetArchivalObjectExtent(archival_object.id) as extents,
-      GetArchivalObjectNoteByType(archival_object.id, 'physfacet') as physical_details_note,
-      GetArchivalObjectNoteByType(archival_object.id, 'odd') as general_note,
       GetArchivalObjectContainers(archival_object.id) as containers,
       GetArchivalObjectDigitalObject(archival_object.id) as digital_object,
       archival_object.root_record_id as resource_id,
       archival_object.id as archival_object_id
+      #{notes_select_list}
     from archival_object
       left outer join resource on resource.id=archival_object.root_record_id
+      #{notes_joins}
     where
       archival_object.repo_id=#{db.literal(@repo_id)}
-      and #{archival_object_id_condition}
-    group by archival_object.id"
+      and #{archival_object_ids_condition}
+    order by archival_object.root_record_id, archival_object.id"
   end
 
   def after_tasks
