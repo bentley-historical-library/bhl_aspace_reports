@@ -40,6 +40,7 @@ class BhlFormatsReport < AbstractReport
     end
     @formats_array.uniq!
     @formats_regex = /\b(#{Regexp.union(@formats_array).source})\b/i
+    @note_columns = []
   end
 
   def fix_row(row)
@@ -108,7 +109,6 @@ class BhlFormatsReport < AbstractReport
   def make_notes_select_list(archival_object_to_note_ids)
     max_notes = archival_object_to_note_ids.values.max.count
     selects = []
-    @note_columns = []
     (1..max_notes).each do |i|
       note_column = "matched_note_#{i}"
       @note_columns << note_column
