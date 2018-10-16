@@ -48,7 +48,29 @@ class BhlFormatsReport < AbstractReport
     @note_columns.each do |note_column|
       BHLAspaceReportsHelper.parse_notes(row, note_column.to_sym)
     end
+    row[:location] = query_location(row[:archival_object_id])
   end
+
+  def query_location(archival_object_id)
+    query_string = "select 
+                      location.barcode as location_barcode,
+                      location.building as location_building
+                    from location
+                      left outer join top_container_housed_at_rlshp on top_container_housed_at_rlshp.location_id=location.id
+                      left outer join top_container_link_rlshp on top_container_link_rlshp.top_container_id=top_container_housed_at_rlshp.top_container_id
+                      left outer join sub_container on sub_container.id=top_container_link_rlshp.sub_container_id
+                      left outer join instance on instance.id=sub_container.instance_id
+                    where instance.archival_object_id=#{archival_object_id}"
+    locations = db.fetch(query_string)
+    location_string = ''
+    locations.each do |location_row|
+      location = location_row.to_hash
+      next unless location[:location_barcode]
+      location_string = "#{location[:location_building]} #{location[:location_barcode]}"
+    end
+    location_string.empty? ? nil : location_string
+  end
+
 
   def query_extents()
     extent_type_ids = query_extent_types()

@@ -56,8 +56,37 @@ class BhlAccessionsReport < AbstractReport
 
   def fix_row(row)
     BHLAspaceReportsHelper.fix_identifier_format_bhl(row)
+    row[:location_barcoded] = query_location(row[:accession_id])
+    row[:location] = row[:location_barcoded] ? row[:location_barcoded] : row[:location_user_defined]
     row[:field_archivists] = fix_field_archivists(row)
     row.delete(:staff_received)
+    row.delete(:location_barcoded)
+    row.delete(:location_user_defined)
+  end
+
+def query_location(accession_id)
+    query_string = "select 
+                      location.barcode as location_barcode,
+                      location.building as location_building
+                    from location
+                      left outer join top_container_housed_at_rlshp on top_container_housed_at_rlshp.location_id=location.id
+                      left outer join top_container_link_rlshp on top_container_link_rlshp.top_container_id=top_container_housed_at_rlshp.top_container_id
+                      left outer join sub_container on sub_container.id=top_container_link_rlshp.sub_container_id
+                      left outer join instance on instance.id=sub_container.instance_id
+                    where instance.accession_id=#{accession_id}"
+    locations = db.fetch(query_string)
+    location_string = ''
+    if locations.count > 10
+      location_string = "Too many locations to include in report"
+    else
+      locations.each do |location_row|
+        location = location_row.to_hash
+        next unless location[:location_barcode]
+        location_string += ', ' if location_string != ''
+        location_string += "#{location[:location_building]} #{location[:location_barcode]}"
+      end
+    end
+    location_string.empty? ? nil : location_string
   end
 
   def query_string
@@ -101,7 +130,7 @@ class BhlAccessionsReport < AbstractReport
       accession.content_description,
       GROUP_CONCAT(user_defined.string_1 SEPARATOR '; ') as staff_received,
       GetAccessionFieldArchivists(accession.id) as field_archivists,
-      GetAccessionLocationUserDefined(accession.id) as location,
+      GetAccessionLocationUserDefined(accession.id) as location_user_defined,
       GetAccessionProcessingStatus(accession.id) as processing_status,
       GetAccessionProcessingPriority(accession.id) as processing_priority,
       GetAccessionClassificationsUserDefined(accession.id) as classification,
