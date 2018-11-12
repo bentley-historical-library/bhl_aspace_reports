@@ -46,7 +46,7 @@ class BhlFormatsReport < AbstractReport
   def fix_row(row)
     BHLAspaceReportsHelper.fix_identifier_format_bhl(row, :call_number)
     @note_columns.each do |note_column|
-      BHLAspaceReportsHelper.parse_notes(row, note_column.to_sym)
+      BHLAspaceReportsHelper.parse_and_format_notes(row, note_column.to_sym)
     end
     row[:location] = query_location(row[:archival_object_id])
   end

@@ -70,19 +70,33 @@ class BHLAspaceReportsHelper
     end
   end
 
-  def self.parse_notes(row, field_name)
+  def self.parse_and_format_notes(row, field_name)
     if row[field_name]
-      parsed_note = JSON.parse(row[field_name])    
+      parsed_note = JSON.parse(row[field_name])
       note_type = parsed_note["type"]
-      note_label = I18n.t("enumerations._note_types.#{note_type}", :default => note_type )
-      if parsed_note["jsonmodel_type"] == "note_singlepart"
-        note_content = parsed_note["content"][0]
-      elsif parsed_note["jsonmodel_type"] == "note_multipart"
-        note_content = parsed_note["subnotes"][0]["content"]
-      end
-      row[field_name] =  "#{note_label}: #{note_content}"
+      note_label = I18n.t("enumerations._note_types.#{note_type}", :default => note_type)
+      note_content = self.parse_note_content(parsed_note)
+      row[field_name] = "#{note_label}: #{note_content}"
     else
       row[field_name] = ""
+    end
+  end
+
+  def self.parse_notes(row, field_name)
+    if row[field_name]
+      parsed_note = JSON.parse(row[field_name])
+      note_content = self.parse_note_content(parsed_note)
+      row[field_name] = note_content
+    else
+      row[field_name] = ""
+    end
+  end
+
+  def self.parse_note_content(note)
+    if note["jsonmodel_type"] == "note_singlepart"
+      note["content"][0]
+    elsif note["jsonmodel_type"] == "note_multipart"
+      note["subnotes"][0]["content"]
     end
   end
 end
