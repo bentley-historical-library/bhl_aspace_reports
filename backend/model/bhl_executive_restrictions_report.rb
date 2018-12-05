@@ -13,6 +13,7 @@ class BhlExecutiveRestrictionsReport < AbstractReport
                       resource.title as collection_title,
                       resource.id as resource_id,
                       resource.identifier as call_number,
+                      archival_object.title as archival_object_title,
                       display_string,
                       GROUP_CONCAT(CONCAT_WS('-', date.begin, date.end) SEPARATOR '; ') as dates_normalized,
                       GROUP_CONCAT(date.expression SEPARATOR '; ') as dates,
@@ -33,6 +34,7 @@ class BhlExecutiveRestrictionsReport < AbstractReport
     BHLAspaceReportsHelper.fix_identifier_format_bhl(row, "call_number")
     row["breadcrumb"] = archival_object[:breadcrumb]
     row["display_string"] = archival_object[:display_string]
+    row["archival_object_title"] = archival_object[:archival_object_title]
     row["dates"] = archival_object[:dates]
     row["dates_normalized"] = archival_object[:dates_normalized]
     parent_id = archival_object[:parent_id]
@@ -65,6 +67,7 @@ class BhlExecutiveRestrictionsReport < AbstractReport
     row["parent_dates"] = most_proximate_date
     row["parent_dates_normalized"] = most_proximate_normalized
     row["parent_depth"] = depth.to_s
+    row["parent_id"] = parent_id.to_s
   end
 
   def fix_row(row)
