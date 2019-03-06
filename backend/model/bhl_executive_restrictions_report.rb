@@ -77,15 +77,21 @@ class BhlExecutiveRestrictionsReport < AbstractReport
 
   def query_string
     "select
-      archival_object_id,
-      notes as accessrestrict
+      note.archival_object_id as archival_object_id,
+      notes as accessrestrict,
+      rights_restriction.end as restriction_end_date,
+      GetEnumValue(rights_restriction_type.restriction_type_id) as local_restriction_type
     from
       note
+    left join
+      rights_restriction on rights_restriction.archival_object_id=note.archival_object_id
+    left join
+      rights_restriction_type on rights_restriction_type.rights_restriction_id=rights_restriction.id
     where
-      archival_object_id is not null
-      and publish=1
+      note.archival_object_id is not null
       and notes like '%accessrestrict%'
-      and LOWER(CONVERT(notes using utf8)) like '%er restrict%'"
+      and GetEnumValue(rights_restriction_type.restriction_type_id)='ER'
+      and LOWER(CONVERT(notes using utf8)) like '%executive records%'"
   end
 
   def after_tasks
