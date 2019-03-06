@@ -26,7 +26,6 @@ class BhlRestrictionsReport < AbstractReport
   end
 
   def query_archival_object_metadata(row)
-    archival_object_metadata = {}
     archival_object_id = row[:archival_object_id]
     query_string = "select
                       resource.title as collection_title,
@@ -60,11 +59,28 @@ class BhlRestrictionsReport < AbstractReport
     row["dates_normalized"] = archival_object[:dates_normalized]
     row["containers"] = archival_object[:containers]
     row["digital_objects"] = archival_object[:digital_objects]
-    row["lowest_level_ids"] = query_child_ids(archival_object_id)
+    # row["lowest_level_ids"] = query_child_ids(archival_object_id)
+  end
+
+  def query_restriction_type(row)
+    archival_object_id = row[:archival_object_id]
+    query_string = "select
+                      GROUP_CONCAT(GetEnumValue(rights_restriction_type.restriction_type_id) SEPARATOR '; ') as local_restriction_type,
+                      GROUP_CONCAT(rights_restriction.end SEPARATOR '; ') as local_restriction_end_date
+                    from
+                      rights_restriction
+                    left join
+                      rights_restriction_type on rights_restriction_type.rights_restriction_id=rights_restriction.id
+                    where
+                      rights_restriction.archival_object_id=#{archival_object_id}"
+    local_restriction_metadata = db.fetch(query_string).first
+    row["local_restriction_type"] = local_restriction_metadata[:local_restriction_type]
+    row["local_restriction_end_date"] = local_restriction_metadata[:local_restriction_end_date]    
   end
 
   def fix_row(row)
     query_archival_object_metadata(row)
+    query_restriction_type(row)
     BHLAspaceReportsHelper.parse_notes(row, :accessrestrict)
   end
 
