@@ -33,6 +33,8 @@ class BhlUnreportedAccessionsReport < AbstractReport
       classification_conditions << "(#{classification_field} IS NULL OR NOT GetEnumValue(#{classification_field}) IN ('MHC', 'FAC'))"
     end
     classification_condition = "(#{classification_conditions.join(' AND ')})"
+
+    processing_status_condition = "GetEnumValue(collection_management.processing_status_id) = 'deaccessioned'"
     
     "select
       accession.id as accession_id,
@@ -45,11 +47,12 @@ class BhlUnreportedAccessionsReport < AbstractReport
       GetAgentBEALContactID(linked_agents_rlshp.agent_person_id, linked_agents_rlshp.agent_family_id, linked_agents_rlshp.agent_corporate_entity_id) as 'Donor Contact ID'
     from accession
       left outer join user_defined on user_defined.accession_id=accession.id
+      left outer join collection_management on collection_management.accession_id=accession.id
       left outer join linked_agents_rlshp on (linked_agents_rlshp.accession_id=accession.id and linked_agents_rlshp.role_id=#{source_enum_id})
     where
       accession.repo_id=#{db.literal(@repo_id)}
       and #{date_condition}
-      and #{classification_condition}
+      and (#{classification_condition} or #{processing_status_condition})
     group by accession.id, linked_agents_rlshp.id
     order by accession.accession_date"
   end
