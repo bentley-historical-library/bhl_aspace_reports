@@ -31,7 +31,9 @@ class BhlDartReport < AbstractReport
     date_condition = BHLAspaceReportsHelper.format_date_condition(db.literal(@from), db.literal(@to), 'accession.accession_date')
     classification_condition = "(GetEnumValue(user_defined.enum_1_id) in ('MHC', 'FAC')
                                 or GetEnumValue(user_defined.enum_2_id) in ('MHC', 'FAC')
-                                or GetEnumValue(user_defined.enum_3_id) in ('MHC', 'FAC'))" 
+                                or GetEnumValue(user_defined.enum_3_id) in ('MHC', 'FAC'))"
+    
+    processing_status_condition = "GetEnumValue(collection_management.processing_status_id) != 'deaccessioned'"
 
     "select
       accession.id,
@@ -64,11 +66,13 @@ class BhlDartReport < AbstractReport
       accession.identifier as bhl_accession_id
     from accession
       left outer join user_defined on user_defined.accession_id=accession.id
+      left outer join collection_management on collection_management.accession_id=accession.id
       left outer join linked_agents_rlshp on (linked_agents_rlshp.accession_id=accession.id and linked_agents_rlshp.role_id=#{source_enum_id})
     where
       accession.repo_id=#{db.literal(@repo_id)}
       and #{date_condition}
       and #{classification_condition}
+      and #{processing_status_condition}
     group by accession.id, linked_agents_rlshp.id
     order by accession.accession_date"
   end
