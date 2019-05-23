@@ -119,7 +119,7 @@ def query_location(accession_id)
     processing_status_condition = processing_status ? BHLAspaceReportsHelper.format_enum_condition('enumvals_processing_status', db.literal(processing_status)) : '1=1'
     processing_priority_condition = processing_priority ? BHLAspaceReportsHelper.format_enum_condition('enumvals_processing_priority', db.literal(processing_priority)) : '1=1'    
     classification_condition = classification ? BHLAspaceReportsHelper.format_classification_condition(db.literal(@classification)) : '1=1'                                
-    donor_condition = donor_uri ? "source_links_agents_rlshp.#{donor_type}_id=#{db.literal(@donor_id)}" : '1=1'    
+    donor_condition = donor_uri ? "source_linked_agents_rlshp.#{donor_type}_id=#{db.literal(@donor_id)}" : '1=1'    
     field_archivist_condition = field_archivist ? "name_person.sort_name=#{db.literal(@field_archivist)}" : '1=1'
 
     
