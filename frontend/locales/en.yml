@@ -9,6 +9,9 @@ en:
     bhl_accessions_report:
       title: BHL Accessions Report
       description: Bentley Historical Library Accessions Report
+    bhl_backlog_report:
+      title: BHL Backlog Report
+      description: Bentley Historical Library Backlog Report (MHC and FAC)
     bhl_executive_restrictions_report:
       title: BHL Executive Restrictions Report
       description: Bentley Historical Library Executive Restrictions Report
