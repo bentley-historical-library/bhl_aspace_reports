@@ -33,7 +33,7 @@ class BhlDartReport < AbstractReport
                                 or GetEnumValue(user_defined.enum_2_id) in ('MHC', 'FAC')
                                 or GetEnumValue(user_defined.enum_3_id) in ('MHC', 'FAC'))"
     
-    processing_status_condition = "GetEnumValue(collection_management.processing_status_id) != 'deaccessioned'"
+    processing_status_condition = "IF(collection_management.processing_status_id, GetEnumValue(collection_management.processing_status_id) NOT IN ('deaccessioned', 'discarded'), 1)"
 
     "select
       accession.id,
@@ -73,6 +73,7 @@ class BhlDartReport < AbstractReport
       and #{date_condition}
       and #{classification_condition}
       and #{processing_status_condition}
+      and linked_agents_rlshp.id is not null
     group by accession.id, linked_agents_rlshp.id
     order by accession.accession_date"
   end
