@@ -80,9 +80,18 @@ class BhlFormatsReport < AbstractReport
     physical_details_condition = physical_details.empty? ? '1=2' : "extent.physical_details in (#{physical_details.join(", ")})"
     extent_condition = "(#{extent_type_condition} or #{physical_details_condition})"
 
-    extent_ids_query = "select archival_object_id from extent where archival_object_id is not null and #{extent_condition}"
-    extent_ids = db.fetch(extent_ids_query).map(:archival_object_id)
-    extent_ids.uniq
+    extent_query_string = "select id, archival_object_id from extent where archival_object_id is not null and #{extent_condition}"
+    matching_extents = db.fetch(extent_query_string).all
+    archival_object_to_extent_ids = {}
+    matching_extents.each do |matching_extent|
+      archival_object_id = matching_extent[:archival_object_id]
+      extent_id = matching_extent[:id]
+      if !archival_object_to_extent_ids.include?(archival_object_id)
+        archival_object_to_extent_ids[archival_object_id] = []
+      end
+      archival_object_to_extent_ids[archival_object_id] << extent_id
+    end
+    archival_object_to_extent_ids
   end
 
   def query_extent_types()
@@ -146,15 +155,58 @@ class BhlFormatsReport < AbstractReport
       note_ids = archival_object_to_note_ids.values.map{|v| v[i-1]}.compact
       if note_ids.count > 0
         note_ids_condition = "note.id in (#{note_ids.join(", ")})"
-        joins << "left outer join (select notes, archival_object_id from note where #{note_ids_condition}) as matched_notes_#{i} on matched_notes_#{i}.archival_object_id=archival_object.id"
+        joins << "left outer join (select id, notes, archival_object_id from note where #{note_ids_condition}) as matched_notes_#{i} on matched_notes_#{i}.archival_object_id=archival_object.id"
       end
     end
     joins.join(" ")
   end
 
+  def make_notes_group(archival_object_to_note_ids)
+    max_notes = archival_object_to_note_ids.values.max.count
+    groups = []
+    (1..max_notes).each do |i|
+      groups << "matched_notes_#{i}.id"
+    end
+    groups.join(", ")
+  end
+
+  def make_extents_select_list(archival_object_to_extent_ids)
+    max_extents = archival_object_to_extent_ids.values.max.count
+    selects = []
+    (1..max_extents).each do |i|
+      extent_column = "extent_#{i}"
+      format_column = "format_#{i}"
+      selects << "CONCAT(extents_#{i}.number, ' ', GetEnumValue(extents_#{i}.extent_type_id)) as #{extent_column}, GetExtentPhysicalDetails(extents_#{i}.id) as #{format_column}"
+    end
+    selects.join(", ")
+  end
+
+  def make_extents_joins(archival_object_to_extent_ids)
+    max_extents = archival_object_to_extent_ids.values.max.count
+    joins = []
+    (1..max_extents).each do |i|
+      extent_ids = archival_object_to_extent_ids.values.map{|v| v[i-1]}.compact
+      if extent_ids.count > 0
+        extent_ids_condition = "extent.id in (#{extent_ids.join(", ")})"
+        joins << "left outer join (select id, number, extent_type_id, archival_object_id from extent where #{extent_ids_condition}) as extents_#{i} on extents_#{i}.archival_object_id=archival_object.id"
+      end
+    end
+    joins.join(" ")
+  end
+
+  def make_extents_group(archival_object_to_extent_ids)
+    max_extents = archival_object_to_extent_ids.values.max.count
+    groups = []
+    (1..max_extents).each do |i|
+      groups << "extents_#{i}.id"
+    end
+    groups.join(", ")
+  end
+
   def query_string
     archival_object_ids = []
-    extent_archival_object_ids = query_extents()
+    archival_object_to_extent_ids = query_extents()
+    extent_archival_object_ids = archival_object_to_extent_ids.keys
     archival_object_to_note_ids = query_notes()
     note_archival_object_ids = archival_object_to_note_ids.keys
     archival_object_ids.concat(extent_archival_object_ids)
@@ -164,9 +216,21 @@ class BhlFormatsReport < AbstractReport
     if archival_object_to_note_ids.count > 0
       notes_select_list = ", " + make_notes_select_list(archival_object_to_note_ids)
       notes_joins = make_notes_joins(archival_object_to_note_ids)
+      notes_group_list = ", " + make_notes_group(archival_object_to_note_ids)
     else
       notes_select_list = ""
       notes_joins = ""
+      notes_group_list = ""
+    end
+
+    if archival_object_to_extent_ids.count > 0
+      extents_select_list = make_extents_select_list(archival_object_to_extent_ids) + ", "
+      extents_joins = make_extents_joins(archival_object_to_extent_ids)
+      extents_group_list = ", " + make_extents_group(archival_object_to_extent_ids)
+    else
+      extents_select_list = ""
+      extents_joins = ""
+      extents_group_list = ""
     end
 
     archival_object_ids_condition = archival_object_ids.empty? ? '1=2' : "archival_object.id in (#{archival_object_ids.join(", ")})"
@@ -174,21 +238,25 @@ class BhlFormatsReport < AbstractReport
     "select
       resource.title as collection_title,
       resource.identifier as call_number,
-      GetArchivalObjectBreadcrumb(archival_object.id) as breadcrumb,
-      archival_object.display_string as display_string,
-      archival_object.component_id as component_unique_id,
-      GetArchivalObjectExtent(archival_object.id) as extents,
       GetArchivalObjectContainers(archival_object.id) as containers,
+      #{extents_select_list}
+      archival_object.title as title,
+      GROUP_CONCAT(date.expression SEPARATOR ', ') as dates,
+      archival_object.id as archival_object_id,
+      GetArchivalObjectBreadcrumb(archival_object.id) as breadcrumb,
+      archival_object.component_id as component_unique_id,
       GetArchivalObjectDigitalObject(archival_object.id) as digital_object,
       archival_object.root_record_id as resource_id,
-      archival_object.id as archival_object_id
       #{notes_select_list}
     from archival_object
       left outer join resource on resource.id=archival_object.root_record_id
+      left outer join date on date.archival_object_id=archival_object.id
       #{notes_joins}
+      #{extents_joins}
     where
       archival_object.repo_id=#{db.literal(@repo_id)}
       and #{archival_object_ids_condition}
+    group by archival_object.id #{notes_group_list} #{extents_group_list}
     order by archival_object.root_record_id, archival_object.id"
   end
 
