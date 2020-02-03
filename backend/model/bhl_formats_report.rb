@@ -246,7 +246,7 @@ class BhlFormatsReport < AbstractReport
       GetArchivalObjectBreadcrumb(archival_object.id) as breadcrumb,
       archival_object.component_id as component_unique_id,
       GetArchivalObjectDigitalObject(archival_object.id) as digital_object,
-      archival_object.root_record_id as resource_id,
+      archival_object.root_record_id as resource_id
       #{notes_select_list}
     from archival_object
       left outer join resource on resource.id=archival_object.root_record_id
