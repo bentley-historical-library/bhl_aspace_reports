@@ -30,7 +30,7 @@ class BhlFormatsReport < AbstractReport
 
   def initialize(params, job, db)
     super
-    submitted_formats = ASUtils.json_parse(@job.job_blob)["additional_params"]
+    submitted_formats = params["submitted_formats"]
     info[:queried_formats] = submitted_formats
     submitted_formats_array = submitted_formats.split(",")
     @formats_array = []
