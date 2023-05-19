@@ -30,8 +30,10 @@ class BhlFormatsReport < AbstractReport
 
   def initialize(params, job, db)
     super
-    submitted_formats = ASUtils.json_parse(@job.job_blob)["additional_params"]
+
+    submitted_formats = ASUtils.json_parse(@job.job_blob).fetch('job_params').fetch('report_formats')
     info[:queried_formats] = submitted_formats
+
     submitted_formats_array = submitted_formats.split(",")
     @formats_array = []
     submitted_formats_array.each do |submitted_format|
@@ -204,6 +206,12 @@ class BhlFormatsReport < AbstractReport
   end
 
   def query_string
+    # Cache the result since this method actually has side effects, and that can be
+    # surprising if you're just trying to print out the query string for debugging.
+    @computed_query_string ||= query_string_compute
+  end
+
+  def query_string_compute
     archival_object_ids = []
     archival_object_to_extent_ids = query_extents()
     extent_archival_object_ids = archival_object_to_extent_ids.keys
