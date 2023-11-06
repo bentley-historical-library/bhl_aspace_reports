@@ -129,14 +129,14 @@ def query_location(accession_id)
       accession.identifier,
       accession.content_description,
       GROUP_CONCAT(user_defined.string_1 SEPARATOR '; ') as staff_received,
-      GetAccessionFieldArchivists(accession.id) as field_archivists,
-      GetAccessionLocationUserDefined(accession.id) as location_user_defined,
-      GetAccessionProcessingStatus(accession.id) as processing_status,
-      GetAccessionProcessingPriority(accession.id) as processing_priority,
-      GetAccessionClassificationsUserDefined(accession.id) as classification,
-      GetAccessionExtentNumberType(accession.id) as extent_number_type,
-      GetAccessionSourceName(accession.id) as donor_name,
-      GetAccessionDonorNumbers(accession.id) as donor_number
+      BHL_GetAccessionFieldArchivists(accession.id) as field_archivists,
+      BHL_GetAccessionLocationUserDefined(accession.id) as location_user_defined,
+      BHL_GetAccessionProcessingStatus(accession.id) as processing_status,
+      BHL_GetAccessionProcessingPriority(accession.id) as processing_priority,
+      BHL_GetAccessionClassificationsUserDefined(accession.id) as classification,
+      BHL_GetAccessionExtentNumberType(accession.id) as extent_number_type,
+      BHL_GetAccessionSourceName(accession.id) as donor_name,
+      BHL_GetAccessionDonorNumbers(accession.id) as donor_number
     from accession
       left outer join linked_agents_rlshp as source_linked_agents_rlshp on (source_linked_agents_rlshp.accession_id=accession.id and source_linked_agents_rlshp.role_id=#{source_enum_id})
       left outer join collection_management on collection_management.accession_id=accession.id

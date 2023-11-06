@@ -34,20 +34,20 @@ class BhlBacklogReport < AbstractReport
     date_condition = BHLAspaceReportsHelper.format_date_condition(db.literal(@from), db.literal(@to), 'accession.accession_date')    
     processing_status_condition = BHLAspaceReportsHelper.format_enum_condition('enumvals_processing_status', db.literal('backlog'))
     
-    classification_condition = "(GetEnumValue(user_defined.enum_1_id) in ('MHC', 'FAC')
-                                or GetEnumValue(user_defined.enum_2_id) in ('MHC', 'FAC')
-                                or GetEnumValue(user_defined.enum_3_id) in ('MHC', 'FAC'))"
+    classification_condition = "(BHL_GetEnumValue(user_defined.enum_1_id) in ('MHC', 'FAC')
+                                or BHL_GetEnumValue(user_defined.enum_2_id) in ('MHC', 'FAC')
+                                or BHL_GetEnumValue(user_defined.enum_3_id) in ('MHC', 'FAC'))"
 
     
     "select 
       accession.id as accession_id,
-      GetAccessionSourceName(accession.id) as donor_name,
-      GetAccessionDonorNumbers(accession.id) as donor_number,
+      BHL_GetAccessionSourceName(accession.id) as donor_name,
+      BHL_GetAccessionDonorNumbers(accession.id) as donor_number,
       accession.identifier,
       accession.accession_date,
       accession.content_description as 'Description',
-      GetAccessionExtentNumberType(accession.id) as 'extent',
-      GetAccessionClassificationsUserDefined(accession.id) as classification
+      BHL_GetAccessionExtentNumberType(accession.id) as 'extent',
+      BHL_GetAccessionClassificationsUserDefined(accession.id) as classification
     from accession
       left outer join linked_agents_rlshp as source_linked_agents_rlshp on (source_linked_agents_rlshp.accession_id=accession.id and source_linked_agents_rlshp.role_id=#{source_enum_id})
       left outer join collection_management on collection_management.accession_id=accession.id

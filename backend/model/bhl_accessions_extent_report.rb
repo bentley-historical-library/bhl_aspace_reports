@@ -33,7 +33,7 @@ class BhlAccessionsExtentReport < AbstractReport
     
     "select
       SUM(extent.number) as totalNumber,
-      GetEnumValue(extent.extent_type_id) as extentType
+      BHL_GetEnumValue(extent.extent_type_id) as extentType
     from accession 
       left outer join user_defined on user_defined.accession_id=accession.id
       left outer join collection_management on collection_management.accession_id=accession.id

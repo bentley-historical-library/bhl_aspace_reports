@@ -57,7 +57,7 @@ class BHLAspaceReportsHelper
   end
 
   def self.format_classification_condition(classification)
-      "(GetEnumValue(user_defined.enum_1_id)=#{classification} or GetEnumValue(user_defined.enum_2_id)=#{classification} or GetEnumValue(user_defined.enum_3_id)=#{classification})"
+      "(BHL_GetEnumValue(user_defined.enum_1_id)=#{classification} or BHL_GetEnumValue(user_defined.enum_2_id)=#{classification} or BHL_GetEnumValue(user_defined.enum_3_id)=#{classification})"
   end
 
   def self.format_enum_condition(enum, value)

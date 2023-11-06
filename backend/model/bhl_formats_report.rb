@@ -97,7 +97,7 @@ class BhlFormatsReport < AbstractReport
   end
 
   def query_extent_types()
-    extent_type_ids_query = "select distinct(extent_type_id) as id, GetEnumValue(extent_type_id) as value from extent"
+    extent_type_ids_query = "select distinct(extent_type_id) as id, BHL_GetEnumValue(extent_type_id) as value from extent"
     extent_types = db.fetch(extent_type_ids_query).all
     matching_extent_type_ids = extent_types.select{|e| e[:value] =~ @formats_regex}.map{|e| e[:id]}
     matching_extent_type_ids
@@ -178,7 +178,7 @@ class BhlFormatsReport < AbstractReport
     (1..max_extents).each do |i|
       extent_column = "extent_#{i}"
       format_column = "format_#{i}"
-      selects << "CONCAT(extents_#{i}.number, ' ', GetEnumValue(extents_#{i}.extent_type_id)) as #{extent_column}, GetExtentPhysicalDetails(extents_#{i}.id) as #{format_column}"
+      selects << "CONCAT(extents_#{i}.number, ' ', BHL_GetEnumValue(extents_#{i}.extent_type_id)) as #{extent_column}, BHL_GetExtentPhysicalDetails(extents_#{i}.id) as #{format_column}"
     end
     selects.join(", ")
   end
@@ -246,14 +246,14 @@ class BhlFormatsReport < AbstractReport
     "select
       resource.title as collection_title,
       resource.identifier as call_number,
-      GetArchivalObjectContainers(archival_object.id) as containers,
+      BHL_GetArchivalObjectContainers(archival_object.id) as containers,
       #{extents_select_list}
       archival_object.title as title,
       GROUP_CONCAT(date.expression SEPARATOR ', ') as dates,
       archival_object.id as archival_object_id,
-      GetArchivalObjectBreadcrumb(archival_object.id) as breadcrumb,
+      BHL_GetArchivalObjectBreadcrumb(archival_object.id) as breadcrumb,
       archival_object.component_id as component_unique_id,
-      GetArchivalObjectDigitalObject(archival_object.id) as digital_object,
+      BHL_GetArchivalObjectDigitalObject(archival_object.id) as digital_object,
       archival_object.root_record_id as resource_id
       #{notes_select_list}
     from archival_object

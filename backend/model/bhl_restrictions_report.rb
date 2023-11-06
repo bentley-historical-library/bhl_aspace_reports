@@ -36,9 +36,9 @@ class BhlRestrictionsReport < AbstractReport
                       GROUP_CONCAT(CONCAT_WS('-', date.begin, date.end) SEPARATOR '; ') as dates_normalized,
                       GROUP_CONCAT(date.expression SEPARATOR '; ') as dates,
                       parent_id,
-                      GetArchivalObjectBreadcrumb(archival_object.id) as breadcrumb,
-                      GetArchivalObjectContainers(archival_object.id) as containers,
-                      GetArchivalObjectDigitalObject(archival_object.id) as digital_objects
+                      BHL_GetArchivalObjectBreadcrumb(archival_object.id) as breadcrumb,
+                      BHL_GetArchivalObjectContainers(archival_object.id) as containers,
+                      BHL_GetArchivalObjectDigitalObject(archival_object.id) as digital_objects
                     from
                       archival_object
                     left join 
@@ -65,7 +65,7 @@ class BhlRestrictionsReport < AbstractReport
   def query_restriction_type(row)
     archival_object_id = row[:archival_object_id]
     query_string = "select
-                      GROUP_CONCAT(GetEnumValue(rights_restriction_type.restriction_type_id) SEPARATOR '; ') as local_restriction_type,
+                      GROUP_CONCAT(BHL_GetEnumValue(rights_restriction_type.restriction_type_id) SEPARATOR '; ') as local_restriction_type,
                       GROUP_CONCAT(rights_restriction.end SEPARATOR '; ') as local_restriction_end_date
                     from
                       rights_restriction

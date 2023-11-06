@@ -18,7 +18,7 @@ class BhlExecutiveRestrictionsReport < AbstractReport
                       GROUP_CONCAT(CONCAT_WS('-', date.begin, date.end) SEPARATOR '; ') as dates_normalized,
                       GROUP_CONCAT(date.expression SEPARATOR '; ') as dates,
                       parent_id,
-                      GetArchivalObjectBreadcrumb(archival_object.id) as breadcrumb
+                      BHL_GetArchivalObjectBreadcrumb(archival_object.id) as breadcrumb
                     from
                       archival_object
                     left join 
@@ -80,7 +80,7 @@ class BhlExecutiveRestrictionsReport < AbstractReport
       note.archival_object_id as archival_object_id,
       notes as accessrestrict,
       rights_restriction.end as restriction_end_date,
-      GetEnumValue(rights_restriction_type.restriction_type_id) as local_restriction_type
+      BHL_GetEnumValue(rights_restriction_type.restriction_type_id) as local_restriction_type
     from
       note
     left join
@@ -90,7 +90,7 @@ class BhlExecutiveRestrictionsReport < AbstractReport
     where
       note.archival_object_id is not null
       and notes like '%accessrestrict%'
-      and GetEnumValue(rights_restriction_type.restriction_type_id)='ER'
+      and BHL_GetEnumValue(rights_restriction_type.restriction_type_id)='ER'
       and LOWER(CONVERT(notes using utf8)) like '%executive records%'"
   end
 

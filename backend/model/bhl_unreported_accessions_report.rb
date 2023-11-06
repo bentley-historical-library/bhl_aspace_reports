@@ -30,21 +30,21 @@ class BhlUnreportedAccessionsReport < AbstractReport
     classification_conditions = []
     classification_fields = ["user_defined.enum_1_id", "user_defined.enum_2_id", "user_defined.enum_3_id"]
     classification_fields.each do |classification_field|
-      classification_conditions << "(#{classification_field} IS NULL OR NOT GetEnumValue(#{classification_field}) IN ('MHC', 'FAC'))"
+      classification_conditions << "(#{classification_field} IS NULL OR NOT BHL_GetEnumValue(#{classification_field}) IN ('MHC', 'FAC'))"
     end
     classification_condition = "(#{classification_conditions.join(' AND ')})"
 
-    processing_status_condition = "GetEnumValue(collection_management.processing_status_id) = 'deaccessioned'"
+    processing_status_condition = "BHL_GetEnumValue(collection_management.processing_status_id) = 'deaccessioned'"
     
     "select
       accession.id as accession_id,
       accession.identifier as Accession_Identifier,
       accession.accession_date,
       accession.created_by,
-      GetAccessionClassificationsUserDefined(accession.id) as classifications,
-      GetAccessionSourceName(accession.id) as donor_name,
-      GetAgentDARTLID(linked_agents_rlshp.agent_person_id, linked_agents_rlshp.agent_family_id, linked_agents_rlshp.agent_corporate_entity_id) as DART_LID,
-      GetAgentBEALContactID(linked_agents_rlshp.agent_person_id, linked_agents_rlshp.agent_family_id, linked_agents_rlshp.agent_corporate_entity_id) as 'Donor Contact ID'
+      BHL_GetAccessionClassificationsUserDefined(accession.id) as classifications,
+      BHL_GetAccessionSourceName(accession.id) as donor_name,
+      BHL_GetAgentDARTLID(linked_agents_rlshp.agent_person_id, linked_agents_rlshp.agent_family_id, linked_agents_rlshp.agent_corporate_entity_id) as DART_LID,
+      BHL_GetAgentBEALContactID(linked_agents_rlshp.agent_person_id, linked_agents_rlshp.agent_family_id, linked_agents_rlshp.agent_corporate_entity_id) as 'Donor Contact ID'
     from accession
       left outer join user_defined on user_defined.accession_id=accession.id
       left outer join collection_management on collection_management.accession_id=accession.id
