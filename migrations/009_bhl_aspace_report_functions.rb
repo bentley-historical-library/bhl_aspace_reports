@@ -136,7 +136,7 @@ BEGIN
 	DECLARE f_value VARCHAR(1024);
 
 		SELECT 
-			GROUP_CONCAT(GetAgentSortname(T1.`agent_person_id`, T1.`agent_family_id`, T1.`agent_corporate_entity_id`) SEPARATOR '; ') INTO f_value
+			GROUP_CONCAT(BHL_GetAgentSortName(T1.`agent_person_id`, T1.`agent_family_id`, T1.`agent_corporate_entity_id`) SEPARATOR '; ') INTO f_value
 		FROM 
 			`linked_agents_rlshp` T1
 		WHERE
@@ -1121,7 +1121,7 @@ BEGIN
     DECLARE f_value VARCHAR(1024);  
         
         SELECT
-            GROUP_CONCAT(GetAgentSortname(T1.`agent_person_id`, T1.`agent_family_id`, T1.`agent_corporate_entity_id`) SEPARATOR '; ') INTO f_value
+            GROUP_CONCAT(BHL_GetAgentSortName(T1.`agent_person_id`, T1.`agent_family_id`, T1.`agent_corporate_entity_id`) SEPARATOR '; ') INTO f_value
         FROM
             `linked_agents_rlshp` T1
         WHERE
