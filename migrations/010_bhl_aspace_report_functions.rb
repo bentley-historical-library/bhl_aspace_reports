@@ -6,6 +6,26 @@ Sequel.migration do
   up do
     if $db_type == :mysql
 
+run "DROP FUNCTION IF EXISTS BHL_GetAccessionSourceName;"
+run <<EOF
+CREATE FUNCTION BHL_GetAccessionSourceName(f_accession_id INT)
+	RETURNS VARCHAR(1024)
+	READS SQL DATA
+BEGIN
+	DECLARE f_value VARCHAR(1024);
+
+		SELECT 
+			GROUP_CONCAT(BHL_GetAgentSortName(T1.`agent_person_id`, T1.`agent_family_id`, T1.`agent_corporate_entity_id`) SEPARATOR '; ') INTO f_value
+		FROM 
+			`linked_agents_rlshp` T1
+		WHERE
+			T1.`accession_id` = f_accession_id
+		AND
+			BINARY BHL_GetEnumValue(T1.`role_id`) = BINARY 'source';
+	RETURN f_value;
+END
+EOF
+
 # Function to return the sortname given a Person, Family, or Corporate
 # when those ids found in the linked_agents_rlshp are passed in as parameters
 run "DROP  FUNCTION IF EXISTS BHL_GetAgentSortName;"
@@ -30,28 +50,6 @@ BEGIN
     RETURN f_value;
 END 
 EOF
-
-
-run "DROP FUNCTION IF EXISTS BHL_GetAccessionSourceName;"
-run <<EOF
-CREATE FUNCTION BHL_GetAccessionSourceName(f_accession_id INT)
-	RETURNS VARCHAR(1024)
-	READS SQL DATA
-BEGIN
-	DECLARE f_value VARCHAR(1024);
-
-		SELECT 
-			GROUP_CONCAT(BHL_GetAgentSortName(T1.`agent_person_id`, T1.`agent_family_id`, T1.`agent_corporate_entity_id`) SEPARATOR '; ') INTO f_value
-		FROM 
-			`linked_agents_rlshp` T1
-		WHERE
-			T1.`accession_id` = f_accession_id
-		AND
-			BINARY BHL_GetEnumValue(T1.`role_id`) = BINARY 'source';
-	RETURN f_value;
-END
-EOF
-
 
 # Function to any agents sort_name linked to the resource has
 # Creators
