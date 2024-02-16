@@ -1,7 +1,7 @@
 en:
   reports:
     bhl_dart_report:
-      title: BHL DART Report
+      title: "BHL DART Report"
       description: Bentley Historical Library DART Report
     bhl_accessions_extent_report:
       title: BHL Accessions Extent Report
