@@ -6,6 +6,7 @@ class BhlDartReport < AbstractReport
                   })
 
 
+
   def initialize(params, job, db)
     super
     from, to = BHLAspaceReportsHelper.parse_date_params(params)
@@ -35,7 +36,7 @@ class BhlDartReport < AbstractReport
     
     processing_status_condition = "IF(collection_management.processing_status_id, BHL_GetEnumValue(collection_management.processing_status_id) NOT IN ('deaccessioned', 'discarded'), 1)"
 
-    "select
+    "select CONCAT_WS(' ', BHL_GetEnumValue(user_defined.enum_1_id), BHL_GetEnumValue(user_defined.enum_2_id), BHL_GetEnumValue(user_defined.enum_3_id)) AS CLASSIFICATIONS,
       accession.id,
       BHL_GetAgentDARTLID(linked_agents_rlshp.agent_person_id, linked_agents_rlshp.agent_family_id, linked_agents_rlshp.agent_corporate_entity_id) as DART_LID,
       BHL_GetAgentLastName(linked_agents_rlshp.agent_person_id, linked_agents_rlshp.agent_family_id, linked_agents_rlshp.agent_corporate_entity_id) as Lastname,
@@ -74,8 +75,15 @@ class BhlDartReport < AbstractReport
       and #{classification_condition}
       and #{processing_status_condition}
       and linked_agents_rlshp.id is not null
-    group by accession.id, linked_agents_rlshp.id
+    group by accession.id, linked_agents_rlshp.id, user_defined.enum_1_id, user_defined.enum_2_id, user_defined.enum_3_id
     order by accession.accession_date"
+  end
+
+
+  def query
+    # job.write_output('query_string = ' )
+    # job.write_output(query_string)
+    db.fetch(query_string)
   end
 
   def after_tasks
