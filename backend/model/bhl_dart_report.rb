@@ -50,6 +50,8 @@ class BhlDartReport < AbstractReport
       BHL_GetAgentCity(linked_agents_rlshp.agent_person_id, linked_agents_rlshp.agent_family_id, linked_agents_rlshp.agent_corporate_entity_id) as City,
       BHL_GetAgentState(linked_agents_rlshp.agent_person_id, linked_agents_rlshp.agent_family_id, linked_agents_rlshp.agent_corporate_entity_id) as St,
       BHL_GetAgentZipCode(linked_agents_rlshp.agent_person_id, linked_agents_rlshp.agent_family_id, linked_agents_rlshp.agent_corporate_entity_id) as Zip,
+      BHL_GetAgentEmail(linked_agents_rlshp.agent_person_id, linked_agents_rlshp.agent_family_id, linked_agents_rlshp.agent_corporate_entity_id) as EMAIL,
+      BHL_GetAgentPhone(linked_agents_rlshp.agent_person_id, linked_agents_rlshp.agent_family_id, linked_agents_rlshp.agent_corporate_entity_id) as PHONE,
       '1' as 'donation amt',
       accession.accession_date as 'credit date',
       'historical records.' as 'item description',
