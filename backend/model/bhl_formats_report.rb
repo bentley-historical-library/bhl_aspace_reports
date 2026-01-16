@@ -251,7 +251,7 @@ class BhlFormatsReport < AbstractReport
       resource.identifier as call_number,
       BHL_GetArchivalObjectContainers(archival_object.id) as containers,
       #{extents_select_list}
-      CONVERT(CAST(archival_object.title AS BINARY) USING utf8mb4) as title,
+      archival_object.title as title,
       GROUP_CONCAT(date.expression SEPARATOR ', ') as dates,
       archival_object.id as archival_object_id,
       BHL_GetArchivalObjectBreadcrumb(archival_object.id) as breadcrumb,
@@ -269,30 +269,6 @@ class BhlFormatsReport < AbstractReport
       and #{archival_object_ids_condition}
     group by archival_object.id #{notes_group_list} #{extents_group_list}
     order by archival_object.root_record_id, archival_object.id"
-
-    # "select
-    #   resource.title as collection_title,
-    #   resource.identifier as call_number,
-    #   BHL_GetArchivalObjectContainers(archival_object.id) as containers,
-    #   #{extents_select_list}
-    #   archival_object.title as title,
-    #   GROUP_CONCAT(date.expression SEPARATOR ', ') as dates,
-    #   archival_object.id as archival_object_id,
-    #   BHL_GetArchivalObjectBreadcrumb(archival_object.id) as breadcrumb,
-    #   archival_object.component_id as component_unique_id,
-    #   BHL_GetArchivalObjectDigitalObject(archival_object.id) as digital_object,
-    #   archival_object.root_record_id as resource_id
-    #   #{notes_select_list}
-    # from archival_object
-    #   left outer join resource on resource.id=archival_object.root_record_id
-    #   left outer join date on date.archival_object_id=archival_object.id
-    #   #{notes_joins}
-    #   #{extents_joins}
-    # where
-    #   archival_object.repo_id=#{db.literal(@repo_id)}
-    #   and #{archival_object_ids_condition}
-    # group by archival_object.id #{notes_group_list} #{extents_group_list}
-    # order by archival_object.root_record_id, archival_object.id"
   end
 
   def after_tasks
