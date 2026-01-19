@@ -48,7 +48,7 @@ run "DROP  FUNCTION IF EXISTS BHL_GetAgentSortName;"
 run "DROP  FUNCTION IF EXISTS GetAgentSortName;"
 run <<EOF
 CREATE FUNCTION BHL_GetAgentSortName(f_person_id INT, f_family_id INT, f_corporate_id INT) 
-    RETURNS VARCHAR(255) CHARSET utf8mb3;
+    RETURNS VARCHAR(255) CHARSET utf8mb3
     READS SQL DATA
 BEGIN
     DECLARE f_value VARCHAR(255) CHARSET utf8mb3;
@@ -71,7 +71,7 @@ EOF
 run "DROP FUNCTION IF EXISTS BHL_GetAccessionSourceName;"
 run <<EOF
 CREATE FUNCTION BHL_GetAccessionSourceName(f_accession_id INT)
-	RETURNS VARCHAR(1024) CHARSET utf8mb3;
+	RETURNS VARCHAR(1024) CHARSET utf8mb3
 	READS SQL DATA
 BEGIN
 	DECLARE f_value VARCHAR(1024) CHARSET utf8mb3;
@@ -94,7 +94,7 @@ EOF
 run "DROP  FUNCTION IF EXISTS BHL_GetResourceCreator;"
 run <<EOF
 CREATE FUNCTION BHL_GetResourceCreator(f_record_id INT) 
-    RETURNS VARCHAR(1024) CHARSET utf8mb3;
+    RETURNS VARCHAR(1024) CHARSET utf8mb3
     READS SQL DATA
 BEGIN
     DECLARE f_value VARCHAR(1024) CHARSET utf8mb3;
