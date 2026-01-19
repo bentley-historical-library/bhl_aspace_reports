@@ -51,7 +51,7 @@ CREATE FUNCTION BHL_GetAgentSortName(f_person_id INT, f_family_id INT, f_corpora
     RETURNS VARCHAR(255) CHARSET utf8mb3;
     READS SQL DATA
 BEGIN
-    DECLARE f_value VARCHAR(255) CHARSET utf8mb3   
+    DECLARE f_value VARCHAR(255) CHARSET utf8mb3;
     
     IF f_person_id IS NOT NULL THEN
             SELECT sort_name INTO f_value FROM name_person WHERE agent_person_id = f_person_id LIMIT 1;
